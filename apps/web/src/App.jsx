@@ -96,9 +96,12 @@ function loadState() {
   return { hotels: seedHotels, bookings: [] };
 }
 
+// NOTE: localStorage is a placeholder for local development only.
+// This will be replaced with real Supabase reads/writes once the backend is wired in —
+// see db/migrations/001_init_schema.sql for the target schema.
 async function persist(state) {
   try {
-    await window.storage.set(STORAGE_KEY, JSON.stringify(state), true);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch (e) {
     console.error("storage set failed", e);
   }
@@ -106,8 +109,8 @@ async function persist(state) {
 
 async function restore() {
   try {
-    const res = await window.storage.get(STORAGE_KEY, true);
-    if (res && res.value) return JSON.parse(res.value);
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
   } catch (e) {
     /* no existing key yet */
   }
