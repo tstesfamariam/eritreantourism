@@ -4,12 +4,15 @@ import {
   ChevronLeft, ChevronRight, CheckCircle2, SlidersHorizontal, LogIn, Hotel, ShieldCheck,
   Plus, Trash2, Building2, CalendarDays, X, ArrowLeft
 } from "lucide-react";
+import {
+  fetchHotels, fetchBookingsForListings, createBooking,
+  updateListing, addListing, removeListing, addHotelPartner,
+} from "./lib/bookingApi";
 
 /* ------------------------------------------------------------------
-   DATA LAYER
+   DATA LAYER — backed by Supabase (see src/lib/bookingApi.js and
+   db/migrations/001_init_schema.sql for the schema behind this).
 ------------------------------------------------------------------- */
-
-const STORAGE_KEY = "asmara-booking-state-v2";
 
 const AMENITY_META = {
   wifi: { label: "Free WiFi", Icon: Wifi },
@@ -20,102 +23,7 @@ const AMENITY_META = {
   ac: { label: "Air conditioning", Icon: Wind },
 };
 
-const seedHotels = [
-  {
-    id: "asmara-palace",
-    name: "Asmara Palace Hotel",
-    city: "Asmara",
-    area: "Airport Road, Asmara",
-    address: "Airport Road, Asmara, Central Region, Eritrea",
-    tagline: "Full-service hotel with pools and conference center",
-    description:
-      "Near the airport, Hotel Asmara Palace offers a luxurious retreat with a breakfast buffet, two on-site restaurants, spa services, and both indoor and outdoor pools.",
-    rating: 4.1,
-    reviews: 459,
-    amenities: ["wifi", "pool", "parking", "breakfast", "restaurant", "ac"],
-    images: ["asmara-palace-1", "asmara-palace-2", "asmara-palace-3"],
-    checkInTime: "12:00 PM – 8:00 PM",
-    checkOutTime: "12:00 PM",
-    policies: [
-      "Guests must contact the property in advance of arrival for check-in instructions.",
-      "Front desk staff greet guests on arrival.",
-      "Pets are not allowed.",
-      "Children are welcome; extra bed/crib charges vary by room type.",
-      "Government-issued photo ID required at check-in.",
-    ],
-    landmarks: [
-      { name: "Fiat Tagliero Building", distance: "15 min walk" },
-      { name: "Synagogue of Asmara", distance: "13 min walk" },
-      { name: "National Museum of Eritrea", distance: "16 min walk" },
-      { name: "Asmara International Airport", distance: "4 min drive" },
-    ],
-    rooms: [
-      { id: "ap-standard", name: "Standard Double", totalUnits: 40, priceUsd: 140, sleeps: 2 },
-      { id: "ap-deluxe", name: "Deluxe Balcony", totalUnits: 25, priceUsd: 176, sleeps: 2 },
-      { id: "ap-suite", name: "Executive Suite", totalUnits: 8, priceUsd: 260, sleeps: 3 },
-    ],
-  },
-  {
-    id: "crystal-hotel",
-    name: "Crystal Hotel",
-    city: "Asmara",
-    area: "Bihat Street, City Center",
-    address: "Bihat Street No. 17, Asmara, Central Region, Eritrea",
-    tagline: "Boutique hotel, walking distance to Harnet Avenue",
-    description:
-      "Crystal Hotel welcomes travelers with attentive service, in-room WiFi, and a cozy on-site restaurant and bar, all within walking distance of central Asmara's main attractions.",
-    rating: 3.8,
-    reviews: 117,
-    amenities: ["wifi", "parking", "restaurant", "ac"],
-    images: ["crystal-1", "crystal-2"],
-    checkInTime: "2:00 PM",
-    checkOutTime: "11:00 AM",
-    policies: [
-      "Front desk staff greet guests on arrival at the property.",
-      "Airport transfers available on request (surcharge may apply, 48 hrs notice required).",
-      "Pets are not allowed.",
-      "Government-issued photo ID required at check-in.",
-    ],
-    landmarks: [
-      { name: "Opera House", distance: "3 min walk" },
-      { name: "Former Governor's Palace", distance: "5 min walk" },
-      { name: "University of Asmara", distance: "14 min walk" },
-      { name: "Asmara International Airport", distance: "14 min drive" },
-    ],
-    rooms: [
-      { id: "ch-standard", name: "Standard Room", totalUnits: 20, priceUsd: 99, sleeps: 2 },
-      { id: "ch-twin", name: "Twin Room", totalUnits: 10, priceUsd: 110, sleeps: 2 },
-    ],
-  },
-];
-
-const uid = (p = "id") => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 const imgUrl = (seed, w = 800, h = 500) => `https://picsum.photos/seed/${seed}/${w}/${h}`;
-
-function loadState() {
-  return { hotels: seedHotels, bookings: [] };
-}
-
-// NOTE: localStorage is a placeholder for local development only.
-// This will be replaced with real Supabase reads/writes once the backend is wired in —
-// see db/migrations/001_init_schema.sql for the target schema.
-async function persist(state) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch (e) {
-    console.error("storage set failed", e);
-  }
-}
-
-async function restore() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch (e) {
-    /* no existing key yet */
-  }
-  return null;
-}
 
 /* ------------------------------------------------------------------
    AVAILABILITY ENGINE
@@ -713,7 +621,7 @@ function HotelPortal({ hotels, bookings, onUpdateRoom, onAddRoom, onRemoveRoom, 
           <input type="number" placeholder="Units" value={newRoomUnits} onChange={(e) => setNewRoomUnits(Number(e.target.value))} className="col-span-2 rounded border px-2 py-1.5 text-sm" />
           <input type="number" placeholder="Price" value={newRoomPrice} onChange={(e) => setNewRoomPrice(Number(e.target.value))} className="col-span-2 rounded border px-2 py-1.5 text-sm" />
           <button
-            onClick={() => { if (!newRoomName.trim()) return; onAddRoom(hotel.id, { id: uid("room"), name: newRoomName.trim(), totalUnits: newRoomUnits, priceUsd: newRoomPrice, sleeps: 2 }); setNewRoomName(""); }}
+            onClick={() => { if (!newRoomName.trim()) return; onAddRoom(hotel.id, { name: newRoomName.trim(), totalUnits: newRoomUnits, priceUsd: newRoomPrice, sleeps: 2 }); setNewRoomName(""); }}
             className="col-span-3 flex items-center justify-center gap-1 rounded-md text-xs font-bold uppercase text-white" style={{ background: OCHRE }}
           >
             <Plus className="h-3.5 w-3.5" /> Add
@@ -755,12 +663,7 @@ function AdminView({ hotels, onAddHotel, onBack }) {
   function submit(e) {
     e.preventDefault();
     if (!name.trim()) return;
-    onAddHotel({
-      id: uid("hotel"), name: name.trim(), city: "Asmara", area: area.trim() || "Asmara, Eritrea",
-      tagline: tagline.trim() || "Newly onboarded property", rating: 4.0, reviews: 0,
-      amenities: ["wifi"], images: ["placeholder-1", "placeholder-2"],
-      rooms: [{ id: uid("room"), name: "Standard Room", totalUnits: 10, priceUsd: 100, sleeps: 2 }],
-    });
+    onAddHotel({ name: name.trim(), area: area.trim() || "Asmara, Eritrea", tagline: tagline.trim() });
     setName(""); setArea(""); setTagline(""); setAdded(true);
     setTimeout(() => setAdded(false), 2500);
   }
@@ -805,29 +708,70 @@ export default function App() {
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [lastBooking, setLastBooking] = useState(null);
 
-  useEffect(() => {
-    (async () => {
-      const restored = await restore();
-      setState(restored || loadState());
-    })();
+  const [loadError, setLoadError] = useState(null);
+
+  const reload = useCallback(async () => {
+    try {
+      const hotels = await fetchHotels();
+      const allRoomIds = hotels.flatMap((h) => h.rooms.map((r) => r.id));
+      const bookings = await fetchBookingsForListings(allRoomIds);
+      setState({ hotels, bookings });
+      setLoadError(null);
+    } catch (err) {
+      console.error("Failed to load from Supabase", err);
+      setLoadError(err.message || "Failed to load data from Supabase");
+    }
   }, []);
 
   useEffect(() => {
-    if (state) persist(state);
-  }, [state]);
+    reload();
+  }, [reload]);
 
-  const addBooking = useCallback((booking) => setState((s) => ({ ...s, bookings: [...s.bookings, booking] })), []);
-  const updateRoom = useCallback((hotelId, roomId, patch) => setState((s) => ({
-    ...s, hotels: s.hotels.map((h) => h.id === hotelId ? { ...h, rooms: h.rooms.map((r) => r.id === roomId ? { ...r, ...patch } : r) } : h),
-  })), []);
-  const addRoom = useCallback((hotelId, room) => setState((s) => ({
-    ...s, hotels: s.hotels.map((h) => h.id === hotelId ? { ...h, rooms: [...h.rooms, room] } : h),
-  })), []);
-  const removeRoom = useCallback((hotelId, roomId) => setState((s) => ({
-    ...s, hotels: s.hotels.map((h) => h.id === hotelId ? { ...h, rooms: h.rooms.filter((r) => r.id !== roomId) } : h),
-  })), []);
-  const addHotel = useCallback((hotel) => setState((s) => ({ ...s, hotels: [...s.hotels, hotel] })), []);
+  const addBooking = useCallback(
+    async (booking) => {
+      const saved = await createBooking(booking);
+      await reload();
+      return saved;
+    },
+    [reload]
+  );
+  const updateRoom = useCallback(
+    async (hotelId, roomId, patch) => {
+      await updateListing(roomId, patch);
+      await reload();
+    },
+    [reload]
+  );
+  const addRoom = useCallback(
+    async (hotelId, room) => {
+      await addListing(hotelId, room);
+      await reload();
+    },
+    [reload]
+  );
+  const removeRoom = useCallback(
+    async (hotelId, roomId) => {
+      await removeListing(roomId);
+      await reload();
+    },
+    [reload]
+  );
+  const addHotel = useCallback(
+    async (hotel) => {
+      await addHotelPartner(hotel);
+      await reload();
+    },
+    [reload]
+  );
 
+  if (loadError) {
+    return (
+      <div className="mx-auto max-w-md p-8 text-center text-sm text-red-700">
+        Couldn't connect to Supabase: {loadError}. Check that <code>VITE_SUPABASE_URL</code> and{" "}
+        <code>VITE_SUPABASE_ANON_KEY</code> are set in <code>.env.local</code> and that the schema/seed SQL has been run.
+      </div>
+    );
+  }
   if (!state) return <div className="flex h-64 items-center justify-center text-sm text-gray-400">Loading…</div>;
 
   const searchBarProps = { query, setQuery, checkIn, setCheckIn, checkOut, setCheckOut, onSearch: () => setView("results") };
@@ -890,15 +834,17 @@ export default function App() {
         <Checkout
           hotel={openHotel} room={selectedRoom} checkIn={checkIn} checkOut={checkOut}
           onBack={() => setView("hotel")}
-          onConfirm={({ guestName, guestEmail }) => {
+          onConfirm={async ({ guestName, guestEmail }) => {
             const nights = dateRange(checkIn, checkOut).length || 1;
-            const booking = {
-              id: uid("bk"), reference: uid("EA").toUpperCase(), hotelId: openHotel.id, roomId: selectedRoom.id,
-              guestName, guestEmail, checkIn, checkOut, totalPaid: selectedRoom.priceUsd * nights,
-              status: "confirmed", createdAt: new Date().toISOString(),
-            };
-            addBooking(booking);
-            setLastBooking(booking);
+            const saved = await addBooking({
+              roomId: selectedRoom.id,
+              guestName,
+              guestEmail,
+              checkIn,
+              checkOut,
+              totalPaid: selectedRoom.priceUsd * nights,
+            });
+            setLastBooking(saved);
             setView("confirmation");
           }}
         />
