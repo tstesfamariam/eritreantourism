@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   Search, MapPin, Star, Wifi, Waves, ParkingCircle, Coffee, UtensilsCrossed, Wind,
   ChevronLeft, ChevronRight, CheckCircle2, SlidersHorizontal, LogIn, Hotel, ShieldCheck,
-  Plus, Trash2, Building2, CalendarDays, X, ArrowLeft, Car, Compass
+  Plus, Trash2, Building2, CalendarDays, X, ArrowLeft, Car, Compass, Menu, Landmark, Clock
 } from "lucide-react";
 import {
   fetchHotels, fetchBookingsForListings, createBooking,
@@ -82,15 +82,175 @@ function SpeedLines({ className = "" }) {
   );
 }
 
-function Wing() {
+function Hero({ imageSeed = "asmara-hero-1", height = "h-72 sm:h-96", children }) {
   return (
-    <div
-      className="absolute inset-0 overflow-hidden pointer-events-none"
-      style={{
-        background: `linear-gradient(135deg, ${PETROL} 0%, ${PETROL} 55%, ${INK} 100%)`,
-        clipPath: "polygon(0 0, 100% 0, 100% 65%, 55% 100%, 0 80%)",
-      }}
-    />
+    <div className={`relative ${height} overflow-hidden`}>
+      <img src={imgUrl(imageSeed, 1600, 700)} alt="" className="absolute inset-0 h-full w-full object-cover" />
+      <div
+        className="absolute inset-0"
+        style={{ background: `linear-gradient(180deg, rgba(28,38,34,0.15) 0%, rgba(27,71,80,0.55) 55%, ${PETROL} 100%)` }}
+      />
+      <div className="relative z-10 flex h-full flex-col justify-end px-5 pb-6 sm:px-8">{children}</div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------
+   SITE MAP — the full category structure. Each leaf item is either
+   "live" (routes into working functionality) or "soon" (routes to a
+   ComingSoon placeholder). This is the single source of truth for nav —
+   update here, both the header quick-links and the side drawer read from it.
+------------------------------------------------------------------- */
+
+const SITE_MAP = [
+  {
+    id: "explore", label: "Explore",
+    items: [
+      { id: "explore-asmara", label: "Asmara (city)", status: "live", view: "content", param: "asmara" },
+      { id: "explore-cities", label: "Other Cities", status: "soon" },
+      { id: "explore-beaches", label: "Beaches", status: "soon" },
+      { id: "explore-mountains", label: "Mountains", status: "soon" },
+      { id: "explore-historical", label: "Historical Sites", status: "soon" },
+      { id: "explore-parks", label: "National Parks", status: "soon" },
+      { id: "explore-museums", label: "Museums", status: "soon" },
+    ],
+  },
+  {
+    id: "stay", label: "Stay",
+    items: [
+      { id: "stay-hotels", label: "Hotels", status: "live", view: "home" },
+      { id: "stay-resorts", label: "Resorts", status: "soon" },
+      { id: "stay-guesthouses", label: "Guest Houses", status: "soon" },
+      { id: "stay-camping", label: "Camping", status: "soon" },
+    ],
+  },
+  {
+    id: "eat", label: "Eat",
+    items: [
+      { id: "eat-restaurants", label: "Restaurants", status: "soon" },
+      { id: "eat-coffee", label: "Coffee Houses", status: "soon" },
+      { id: "eat-traditional", label: "Traditional Food", status: "soon" },
+    ],
+  },
+  {
+    id: "experience", label: "Experience",
+    items: [
+      { id: "exp-tours", label: "Tours", status: "soon" },
+      { id: "exp-hiking", label: "Hiking", status: "soon" },
+      { id: "exp-cycling", label: "Cycling", status: "soon" },
+      { id: "exp-diving", label: "Diving", status: "soon" },
+      { id: "exp-birds", label: "Bird Watching", status: "soon" },
+      { id: "exp-culture", label: "Cultural Experiences", status: "soon" },
+    ],
+  },
+  {
+    id: "travel", label: "Travel",
+    items: [
+      { id: "travel-flights", label: "Flights", status: "soon" },
+      { id: "travel-visa", label: "Visa Information", status: "soon" },
+      { id: "travel-cars", label: "Car Rental", status: "soon" },
+      { id: "travel-bus", label: "Bus Routes", status: "soon" },
+      { id: "travel-ferries", label: "Ferries", status: "soon" },
+    ],
+  },
+  {
+    id: "events", label: "Events",
+    items: [{ id: "events-calendar", label: "Festivals & Events Calendar", status: "soon" }],
+  },
+  {
+    id: "directory", label: "Business Directory",
+    items: [
+      { id: "dir-banks", label: "Banks", status: "soon" },
+      { id: "dir-hospitals", label: "Hospitals", status: "soon" },
+      { id: "dir-pharmacies", label: "Pharmacies", status: "soon" },
+      { id: "dir-embassies", label: "Embassies", status: "soon" },
+      { id: "dir-telecom", label: "Telecom", status: "soon" },
+      { id: "dir-shopping", label: "Shopping", status: "soon" },
+    ],
+  },
+  {
+    id: "services", label: "Services",
+    items: [
+      { id: "svc-guides", label: "Tour Guides", status: "soon" },
+      { id: "svc-photo", label: "Photographers", status: "soon" },
+      { id: "svc-translate", label: "Translators", status: "soon" },
+      { id: "svc-taxi", label: "Taxi Services", status: "soon" },
+    ],
+  },
+];
+
+function SideDrawer({ open, onClose, onNavigateItem }) {
+  const [expanded, setExpanded] = useState("explore");
+
+  return (
+    <>
+      <div
+        className={`fixed inset-0 z-40 bg-black/40 transition-opacity ${open ? "opacity-100" : "pointer-events-none opacity-0"}`}
+        onClick={onClose}
+      />
+      <div
+        className={`fixed inset-y-0 left-0 z-50 w-[85%] max-w-xs overflow-y-auto bg-white shadow-xl transition-transform duration-300 ${open ? "translate-x-0" : "-translate-x-full"}`}
+      >
+        <div className="flex items-center justify-between border-b px-4 py-4" style={{ borderColor: CARD_BORDER }}>
+          <span className="text-sm font-black uppercase tracking-tight" style={{ color: PETROL }}>
+            eritreantourism<span style={{ color: OCHRE }}>.com</span>
+          </span>
+          <button onClick={onClose} aria-label="Close menu"><X className="h-5 w-5" style={{ color: PETROL }} /></button>
+        </div>
+        <nav className="px-2 py-3">
+          {SITE_MAP.map((section) => (
+            <div key={section.id} className="border-b" style={{ borderColor: "#f0ece0" }}>
+              <button
+                onClick={() => setExpanded(expanded === section.id ? null : section.id)}
+                className="flex w-full items-center justify-between px-3 py-3 text-sm font-bold uppercase tracking-wide"
+                style={{ color: INK }}
+              >
+                {section.label}
+                <ChevronRight className={`h-4 w-4 transition-transform ${expanded === section.id ? "rotate-90" : ""}`} style={{ color: OCHRE }} />
+              </button>
+              {expanded === section.id && (
+                <div className="pb-2 pl-3">
+                  {section.items.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => onNavigateItem(item)}
+                      className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm"
+                      style={{ color: item.status === "live" ? PETROL : "#a39c8c" }}
+                    >
+                      <span className={item.status === "live" ? "font-semibold" : ""}>{item.label}</span>
+                      {item.status === "soon" && (
+                        <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold text-gray-400">Soon</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </nav>
+      </div>
+    </>
+  );
+}
+
+function NavHeader({ onOpenMenu, onNavigate }) {
+  return (
+    <header className="sticky top-0 z-30 border-b bg-white" style={{ borderColor: CARD_BORDER }}>
+      <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-8">
+        <div className="flex items-center gap-3">
+          <button onClick={onOpenMenu} aria-label="Open menu" className="rounded-md p-1 hover:bg-gray-50">
+            <Menu className="h-5 w-5" style={{ color: PETROL }} />
+          </button>
+          <button onClick={() => onNavigate("home")} className="text-sm font-black uppercase tracking-tight sm:text-base" style={{ color: PETROL }}>
+            eritreantourism<span style={{ color: OCHRE }}>.com</span>
+          </button>
+        </div>
+        <nav className="hidden items-center gap-1 sm:flex">
+          <button onClick={() => onNavigate("explore")} className="rounded-md px-3 py-1.5 text-sm font-bold uppercase tracking-wide" style={{ color: PETROL }}>Explore</button>
+          <button onClick={() => onNavigate("home")} className="rounded-md px-3 py-1.5 text-sm font-bold uppercase tracking-wide" style={{ color: PETROL }}>Stay</button>
+        </nav>
+      </div>
+    </header>
   );
 }
 
@@ -181,7 +341,7 @@ function ResultsView({ hotels, bookings, checkIn, checkOut, onOpenHotel, searchB
 
   return (
     <div className="mx-auto max-w-4xl px-4 pb-16 sm:px-8">
-      <div className="sticky top-0 z-20 -mx-4 px-4 pb-3 pt-3 sm:-mx-8 sm:px-8" style={{ background: PLASTER }}>
+      <div className="sticky top-[57px] z-20 -mx-4 px-4 pb-3 pt-3 sm:-mx-8 sm:px-8" style={{ background: PLASTER }}>
         <SearchBar {...searchBarProps} />
       </div>
 
@@ -695,85 +855,212 @@ function AdminView({ hotels, onAddHotel, onBack }) {
 }
 
 /* ------------------------------------------------------------------
-   LANDING PAGE — brand homepage for eritreantourism.com.
-   Hotels is the only live vertical; others are placeholders for the
-   generalized schema (tour/vehicle/table listing_types) built out later.
+   HOME — brand homepage for eritreantourism.com. Search is embedded
+   directly in the hero (Expedia pattern); a browsable "Popular hotels"
+   section gives the page content even before anyone searches. Other
+   verticals (tours/rentals/dining) are represented in the nav header
+   as "Soon" tabs — see the generalized schema for how they'll plug in.
 ------------------------------------------------------------------- */
 
-function CategoryCard({ icon: Icon, title, description, active, onClick }) {
+function PromoCard({ hotel, onClick }) {
+  const fromPrice = Math.min(...hotel.rooms.map((r) => r.priceUsd));
   return (
     <button
-      onClick={active ? onClick : undefined}
-      className={`flex flex-col items-start rounded-xl border-2 bg-white p-5 text-left transition-shadow ${active ? "hover:shadow-md" : "cursor-default opacity-60"}`}
+      onClick={onClick}
+      className="flex flex-col overflow-hidden rounded-xl border-2 bg-white text-left shadow-sm transition-shadow hover:shadow-md"
       style={{ borderColor: CARD_BORDER }}
     >
-      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full" style={{ background: active ? OCHRE : "#c9c2b0" }}>
-        <Icon className="h-5 w-5 text-white" />
+      <img src={imgUrl(hotel.images[0], 500, 320)} alt={hotel.name} className="h-40 w-full object-cover" />
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="font-bold" style={{ color: INK }}>{hotel.name}</h3>
+          <span className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-bold text-white" style={{ background: PETROL }}>
+            <Star className="h-3 w-3 fill-white" /> {hotel.rating}
+          </span>
+        </div>
+        <p className="mt-0.5 flex items-center gap-1 text-xs text-gray-500"><MapPin className="h-3 w-3" /> {hotel.area}</p>
+        <p className="mt-2 text-right text-sm">
+          <span className="text-gray-400">from </span>
+          <span className="text-lg font-black" style={{ color: OCHRE }}>${fromPrice}</span>
+          <span className="text-xs text-gray-400">/night</span>
+        </p>
       </div>
-      <div className="flex w-full items-center justify-between">
-        <h3 className="font-bold" style={{ color: INK }}>{title}</h3>
-        {!active && (
-          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gray-500">Coming soon</span>
-        )}
-      </div>
-      <p className="mt-1 text-xs text-gray-500">{description}</p>
     </button>
   );
 }
 
-function Landing({ onEnterHotels }) {
+function Home({ hotels, searchBarProps, onSearch, onOpenHotel }) {
   return (
     <div>
-      <div className="relative h-64 sm:h-72">
-        <Wing />
-        <div className="relative z-10 flex h-full flex-col justify-end px-5 pb-6 sm:px-8">
-          <SpeedLines className="mb-2" />
-          <h1 className="text-3xl font-black uppercase tracking-tight text-white sm:text-4xl">eritreantourism.com</h1>
-          <p className="mt-1 max-w-md text-xs font-medium uppercase tracking-widest text-white/70 sm:text-sm">
-            Everything you need to visit Eritrea, in one place — pay in USD, book with confidence
-          </p>
-        </div>
-      </div>
-
-      <div className="mx-auto max-w-3xl px-4 pb-16 pt-8 sm:px-8" style={{ marginTop: "-1.5rem" }}>
-        <h2 className="mb-4 text-xs font-bold uppercase tracking-wide" style={{ color: PETROL }}>What are you planning?</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <CategoryCard
-            icon={Hotel}
-            title="Hotels"
-            description="Search and book hotels across Eritrea with live availability."
-            active
-            onClick={onEnterHotels}
-          />
-          <CategoryCard
-            icon={Compass}
-            title="Guided Tours"
-            description="History, architecture, and Sun & Sand tours with local operators."
-          />
-          <CategoryCard
-            icon={Car}
-            title="Car & Bike Rentals"
-            description="Self-drive and guided vehicle rentals for getting around."
-          />
-          <CategoryCard
-            icon={UtensilsCrossed}
-            title="Restaurant Reservations"
-            description="Reserve a table ahead of time — no payment required."
-          />
-        </div>
-        <p className="mt-6 text-center text-xs text-gray-400">
-          Hotels are live today. Tours, rentals, and restaurant reservations are launching soon.
+      <Hero imageSeed="asmara-hero-1">
+        <SpeedLines className="mb-2" />
+        <h1 className="max-w-lg text-2xl font-black leading-tight text-white sm:text-4xl">
+          Everything you need to visit Eritrea, in one place
+        </h1>
+        <p className="mt-1 mb-5 max-w-md text-xs font-medium uppercase tracking-widest text-white/80 sm:text-sm">
+          Hotels today — tours, rentals &amp; dining coming soon. Pay in USD, book with confidence.
         </p>
+        <div className="max-w-3xl">
+          <SearchBar {...searchBarProps} onSearch={onSearch} />
+        </div>
+      </Hero>
+
+      <div className="mx-auto max-w-4xl px-4 pb-16 pt-8 sm:px-8">
+        <h2 className="mb-4 text-xs font-bold uppercase tracking-wide" style={{ color: PETROL }}>Popular hotels in Asmara</h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {hotels.map((h) => (
+            <PromoCard key={h.id} hotel={h} onClick={() => onOpenHotel(h.id)} />
+          ))}
+        </div>
       </div>
     </div>
   );
 }
 
 
+/* ------------------------------------------------------------------
+   COMING SOON — generic placeholder for any not-yet-built site-map item.
+------------------------------------------------------------------- */
+
+function ComingSoon({ label, onExploreAsmara, onBrowseHotels }) {
+  return (
+    <div className="mx-auto max-w-md px-4 py-16 text-center">
+      <Clock className="mx-auto mb-4 h-10 w-10" style={{ color: OCHRE }} />
+      <h2 className="text-lg font-black" style={{ color: INK }}>{label}</h2>
+      <p className="mt-2 text-sm text-gray-500">
+        This section is launching soon as eritreantourism.com grows into a full guide to Eritrea.
+      </p>
+      <div className="mt-6 flex flex-col gap-2">
+        <button onClick={onBrowseHotels} className="rounded-md py-2.5 text-sm font-bold uppercase tracking-wide text-white" style={{ background: OCHRE }}>
+          Browse Hotels
+        </button>
+        <button onClick={onExploreAsmara} className="rounded-md border-2 py-2.5 text-sm font-bold uppercase tracking-wide" style={{ borderColor: PETROL, color: PETROL }}>
+          Explore Asmara
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------
+   EXPLORE HUB — Cities/Beaches/Mountains/etc. category grid.
+   Only Asmara is a real content page today; the rest route to ComingSoon.
+------------------------------------------------------------------- */
+
+function ExploreHub({ onOpenContent, onComingSoon }) {
+  const categories = [
+    { id: "asmara", label: "Asmara", icon: Building2, live: true, blurb: "Italian modernist architecture, coffee culture, and the highland capital." },
+    { id: "cities", label: "Other Cities", icon: Building2, live: false, blurb: "Massawa, Keren, and more." },
+    { id: "beaches", label: "Beaches", icon: Waves, live: false, blurb: "Red Sea coastline and the Dahlak Archipelago." },
+    { id: "mountains", label: "Mountains", icon: Compass, live: false, blurb: "Highland scenery and trekking routes." },
+    { id: "historical", label: "Historical Sites", icon: Landmark, live: false, blurb: "Qohaito, ancient ruins, and colonial-era landmarks." },
+    { id: "parks", label: "National Parks", icon: Compass, live: false, blurb: "Protected wildlife and nature reserves." },
+    { id: "museums", label: "Museums", icon: Building2, live: false, blurb: "National Museum of Eritrea and regional collections." },
+  ];
+  return (
+    <div>
+      <Hero imageSeed="asmara-explore-hero" height="h-56 sm:h-64">
+        <SpeedLines className="mb-2" />
+        <h1 className="text-2xl font-black text-white sm:text-3xl">Explore Eritrea</h1>
+        <p className="mt-1 max-w-md text-xs font-medium uppercase tracking-widest text-white/80 sm:text-sm">
+          Cities, landmarks, and landscapes worth knowing before you go
+        </p>
+      </Hero>
+      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-8">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {categories.map((c) => {
+            const Icon = c.icon;
+            return (
+              <button
+                key={c.id}
+                onClick={() => (c.live ? onOpenContent(c.id) : onComingSoon(c.label))}
+                className={`flex items-start gap-3 rounded-xl border-2 bg-white p-4 text-left transition-shadow ${c.live ? "hover:shadow-md" : "opacity-60"}`}
+                style={{ borderColor: CARD_BORDER }}
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style={{ background: c.live ? OCHRE : "#c9c2b0" }}>
+                  <Icon className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold" style={{ color: INK }}>{c.label}</h3>
+                    {!c.live && <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold text-gray-400">Soon</span>}
+                  </div>
+                  <p className="mt-0.5 text-xs text-gray-500">{c.blurb}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------
+   CONTENT PAGE — the real Asmara write-up, proving the Explore pattern
+   and cross-linking into Stay (hotels) the way a real directory should.
+------------------------------------------------------------------- */
+
+function AsmaraContentPage({ onBack, onBrowseHotels }) {
+  return (
+    <div>
+      <Hero imageSeed="asmara-content-hero" height="h-64 sm:h-80">
+        <button onClick={onBack} className="mb-2 flex w-fit items-center gap-1 text-[11px] font-semibold uppercase tracking-widest text-white/80 hover:text-white">
+          <ArrowLeft className="h-3 w-3" /> Explore
+        </button>
+        <h1 className="text-2xl font-black text-white sm:text-4xl">Asmara</h1>
+        <p className="mt-1 max-w-md text-xs font-medium uppercase tracking-widest text-white/80 sm:text-sm">
+          Eritrea's highland capital, a living museum of modernist architecture
+        </p>
+      </Hero>
+
+      <div className="mx-auto max-w-2xl px-4 py-8 sm:px-8">
+        <p className="text-sm leading-relaxed text-gray-700">
+          Perched at roughly 2,300 meters in the Eritrean highlands, Asmara is best known for one of the
+          world's best-preserved collections of early modernist and Art Deco architecture, built during
+          the Italian colonial period of the 1930s. UNESCO inscribed the city center as a World Heritage
+          Site in 2017, citing its unusually intact urban fabric.
+        </p>
+        <p className="mt-3 text-sm leading-relaxed text-gray-700">
+          Beyond the buildings, Asmara moves at an unhurried pace — tree-lined Harnet Avenue fills with
+          strolling crowds in the evenings, and the city's coffee culture (a legacy of the same era) runs
+          deep, with traditional ceremonies still a centerpiece of daily life.
+        </p>
+
+        <h2 className="mb-3 mt-8 text-xs font-bold uppercase tracking-wide" style={{ color: PETROL }}>Landmarks not to miss</h2>
+        <div className="space-y-2">
+          {[
+            { name: "Fiat Tagliero Building", note: "Futurist former gas station with dramatic cantilevered wings" },
+            { name: "Asmara Opera House", note: "Grand early-1900s theater on Harnet Avenue" },
+            { name: "National Museum of Eritrea", note: "Archaeology, culture, and natural history collections" },
+            { name: "Asmara's Great Mosque & Cathedral", note: "Landmarks reflecting the city's mixed religious heritage" },
+          ].map((l) => (
+            <div key={l.name} className="flex items-start gap-2 rounded-md bg-gray-50 px-3 py-2 text-sm">
+              <Landmark className="mt-0.5 h-4 w-4 shrink-0" style={{ color: OCHRE }} />
+              <div>
+                <p className="font-semibold" style={{ color: INK }}>{l.name}</p>
+                <p className="text-xs text-gray-500">{l.note}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-8 rounded-xl border-2 p-5 text-center" style={{ borderColor: CARD_BORDER, background: "#fff" }}>
+          <p className="text-sm text-gray-600">Planning a visit?</p>
+          <button onClick={onBrowseHotels} className="mt-3 rounded-md px-5 py-2.5 text-sm font-bold uppercase tracking-wide text-white" style={{ background: OCHRE }}>
+            See Hotels in Asmara
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   const [state, setState] = useState(null);
-  const [view, setView] = useState("landing"); // landing | search | results | hotel | checkout | confirmation | partner
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [comingSoonLabel, setComingSoonLabel] = useState("");
+  const [view, setView] = useState("home"); // home | explore | content | results | hotel | checkout | confirmation | partner | comingsoon
   const [query, setQuery] = useState("Asmara");
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
@@ -854,36 +1141,60 @@ export default function App() {
       <PartnerArea
         hotels={state.hotels} bookings={state.bookings}
         onUpdateRoom={updateRoom} onAddRoom={addRoom} onRemoveRoom={removeRoom} onAddHotel={addHotel}
-        onExit={() => setView("landing")}
+        onExit={() => setView("home")}
       />
     );
   }
 
   const openHotel = state.hotels.find((h) => h.id === openHotelId);
 
+  function handleDrawerNavigate(item) {
+    setDrawerOpen(false);
+    if (item.status === "soon") {
+      setComingSoonLabel(item.label);
+      setView("comingsoon");
+      return;
+    }
+    if (item.view === "content") {
+      setView("content");
+    } else {
+      setView(item.view);
+    }
+  }
+
   return (
     <div className="min-h-screen" style={{ background: PLASTER, fontFamily: "ui-sans-serif, system-ui, sans-serif" }}>
-      {view === "landing" && <Landing onEnterHotels={() => setView("search")} />}
+      {view !== "checkout" && view !== "confirmation" && (
+        <NavHeader onOpenMenu={() => setDrawerOpen(true)} onNavigate={setView} />
+      )}
+      <SideDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} onNavigateItem={handleDrawerNavigate} />
 
-      {(view === "search" || view === "results") && (
-        <div className="relative h-44 sm:h-52">
-          <Wing />
-          <div className="relative z-10 flex h-full flex-col justify-end px-5 pb-5 sm:px-8">
-            <button onClick={() => setView("landing")} className="mb-1 flex w-fit items-center gap-1 text-[11px] font-semibold uppercase tracking-widest text-white/70 hover:text-white">
-              <ArrowLeft className="h-3 w-3" /> eritreantourism.com
-            </button>
-            <SpeedLines className="mb-2" />
-            <h1 className="text-2xl font-black uppercase tracking-tight text-white sm:text-3xl">Hotels in Eritrea</h1>
-            <p className="text-xs font-medium uppercase tracking-widest text-white/70 sm:text-sm">Find and book hotels in Eritrea, pay in USD</p>
-          </div>
-        </div>
+      {view === "home" && (
+        <Home
+          hotels={state.hotels}
+          searchBarProps={searchBarProps}
+          onSearch={() => setView("results")}
+          onOpenHotel={(id) => { setOpenHotelId(id); setView("hotel"); }}
+        />
       )}
 
-      {view === "search" && (
-        <div className="mx-auto max-w-2xl px-4 pb-16 sm:px-8" style={{ marginTop: "-2rem" }}>
-          <SearchBar {...searchBarProps} />
-          <p className="mt-4 text-center text-xs text-gray-400">Search a destination and your dates to see real-time room availability and pricing.</p>
-        </div>
+      {view === "explore" && (
+        <ExploreHub
+          onOpenContent={() => setView("content")}
+          onComingSoon={(label) => { setComingSoonLabel(label); setView("comingsoon"); }}
+        />
+      )}
+
+      {view === "content" && (
+        <AsmaraContentPage onBack={() => setView("explore")} onBrowseHotels={() => setView("home")} />
+      )}
+
+      {view === "comingsoon" && (
+        <ComingSoon
+          label={comingSoonLabel}
+          onExploreAsmara={() => setView("content")}
+          onBrowseHotels={() => setView("home")}
+        />
       )}
 
       {view === "results" && (
@@ -929,7 +1240,7 @@ export default function App() {
       )}
 
       {view === "confirmation" && openHotel && selectedRoom && lastBooking && (
-        <Confirmation hotel={openHotel} room={selectedRoom} booking={lastBooking} onDone={() => setView("search")} />
+        <Confirmation hotel={openHotel} room={selectedRoom} booking={lastBooking} onDone={() => setView("home")} />
       )}
 
       <footer className="border-t px-4 py-4 text-center sm:px-8" style={{ borderColor: CARD_BORDER }}>
