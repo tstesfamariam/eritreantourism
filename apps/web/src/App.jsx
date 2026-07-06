@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   Search, MapPin, Star, Wifi, Waves, ParkingCircle, Coffee, UtensilsCrossed, Wind,
   ChevronLeft, ChevronRight, CheckCircle2, SlidersHorizontal, LogIn, Hotel, ShieldCheck,
-  Plus, Trash2, Building2, CalendarDays, X, ArrowLeft
+  Plus, Trash2, Building2, CalendarDays, X, ArrowLeft, Car, Compass
 } from "lucide-react";
 import {
   fetchHotels, fetchBookingsForListings, createBooking,
@@ -695,12 +695,85 @@ function AdminView({ hotels, onAddHotel, onBack }) {
 }
 
 /* ------------------------------------------------------------------
-   ROOT APP
+   LANDING PAGE — brand homepage for eritreantourism.com.
+   Hotels is the only live vertical; others are placeholders for the
+   generalized schema (tour/vehicle/table listing_types) built out later.
 ------------------------------------------------------------------- */
+
+function CategoryCard({ icon: Icon, title, description, active, onClick }) {
+  return (
+    <button
+      onClick={active ? onClick : undefined}
+      className={`flex flex-col items-start rounded-xl border-2 bg-white p-5 text-left transition-shadow ${active ? "hover:shadow-md" : "cursor-default opacity-60"}`}
+      style={{ borderColor: CARD_BORDER }}
+    >
+      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full" style={{ background: active ? OCHRE : "#c9c2b0" }}>
+        <Icon className="h-5 w-5 text-white" />
+      </div>
+      <div className="flex w-full items-center justify-between">
+        <h3 className="font-bold" style={{ color: INK }}>{title}</h3>
+        {!active && (
+          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gray-500">Coming soon</span>
+        )}
+      </div>
+      <p className="mt-1 text-xs text-gray-500">{description}</p>
+    </button>
+  );
+}
+
+function Landing({ onEnterHotels }) {
+  return (
+    <div>
+      <div className="relative h-64 sm:h-72">
+        <Wing />
+        <div className="relative z-10 flex h-full flex-col justify-end px-5 pb-6 sm:px-8">
+          <SpeedLines className="mb-2" />
+          <h1 className="text-3xl font-black uppercase tracking-tight text-white sm:text-4xl">eritreantourism.com</h1>
+          <p className="mt-1 max-w-md text-xs font-medium uppercase tracking-widest text-white/70 sm:text-sm">
+            Everything you need to visit Eritrea, in one place — pay in USD, book with confidence
+          </p>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-3xl px-4 pb-16 pt-8 sm:px-8" style={{ marginTop: "-1.5rem" }}>
+        <h2 className="mb-4 text-xs font-bold uppercase tracking-wide" style={{ color: PETROL }}>What are you planning?</h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <CategoryCard
+            icon={Hotel}
+            title="Hotels"
+            description="Search and book hotels across Eritrea with live availability."
+            active
+            onClick={onEnterHotels}
+          />
+          <CategoryCard
+            icon={Compass}
+            title="Guided Tours"
+            description="History, architecture, and Sun & Sand tours with local operators."
+          />
+          <CategoryCard
+            icon={Car}
+            title="Car & Bike Rentals"
+            description="Self-drive and guided vehicle rentals for getting around."
+          />
+          <CategoryCard
+            icon={UtensilsCrossed}
+            title="Restaurant Reservations"
+            description="Reserve a table ahead of time — no payment required."
+          />
+        </div>
+        <p className="mt-6 text-center text-xs text-gray-400">
+          Hotels are live today. Tours, rentals, and restaurant reservations are launching soon.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+
 
 export default function App() {
   const [state, setState] = useState(null);
-  const [view, setView] = useState("search"); // search | results | hotel | checkout | confirmation | partner
+  const [view, setView] = useState("landing"); // landing | search | results | hotel | checkout | confirmation | partner
   const [query, setQuery] = useState("Asmara");
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
@@ -781,7 +854,7 @@ export default function App() {
       <PartnerArea
         hotels={state.hotels} bookings={state.bookings}
         onUpdateRoom={updateRoom} onAddRoom={addRoom} onRemoveRoom={removeRoom} onAddHotel={addHotel}
-        onExit={() => setView("search")}
+        onExit={() => setView("landing")}
       />
     );
   }
@@ -790,12 +863,17 @@ export default function App() {
 
   return (
     <div className="min-h-screen" style={{ background: PLASTER, fontFamily: "ui-sans-serif, system-ui, sans-serif" }}>
+      {view === "landing" && <Landing onEnterHotels={() => setView("search")} />}
+
       {(view === "search" || view === "results") && (
         <div className="relative h-44 sm:h-52">
           <Wing />
           <div className="relative z-10 flex h-full flex-col justify-end px-5 pb-5 sm:px-8">
+            <button onClick={() => setView("landing")} className="mb-1 flex w-fit items-center gap-1 text-[11px] font-semibold uppercase tracking-widest text-white/70 hover:text-white">
+              <ArrowLeft className="h-3 w-3" /> eritreantourism.com
+            </button>
             <SpeedLines className="mb-2" />
-            <h1 className="text-2xl font-black uppercase tracking-tight text-white sm:text-3xl">Asmara Stay Exchange</h1>
+            <h1 className="text-2xl font-black uppercase tracking-tight text-white sm:text-3xl">Hotels in Eritrea</h1>
             <p className="text-xs font-medium uppercase tracking-widest text-white/70 sm:text-sm">Find and book hotels in Eritrea, pay in USD</p>
           </div>
         </div>
