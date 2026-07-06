@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Search, MapPin, Star, Wifi, Waves, ParkingCircle, Coffee, UtensilsCrossed, Wind,
   ChevronLeft, ChevronRight, CheckCircle2, SlidersHorizontal, LogIn, Hotel, ShieldCheck,
@@ -233,21 +233,62 @@ function SideDrawer({ open, onClose, onNavigateItem }) {
   );
 }
 
-function NavHeader({ onOpenMenu, onNavigate }) {
+function NavHeader({ onOpenMenu, onNavigate, onNavigateItem }) {
+  const [openId, setOpenId] = useState(null);
+  const closeTimer = useRef(null);
+
+  function openNow(id) {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    setOpenId(id);
+  }
+  function closeSoon() {
+    closeTimer.current = setTimeout(() => setOpenId(null), 150);
+  }
+
   return (
     <header className="sticky top-0 z-30 border-b bg-white" style={{ borderColor: CARD_BORDER }}>
       <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-8">
         <div className="flex items-center gap-3">
-          <button onClick={onOpenMenu} aria-label="Open menu" className="rounded-md p-1 hover:bg-gray-50">
+          <button onClick={onOpenMenu} aria-label="Open menu" className="rounded-md p-1 hover:bg-gray-50 sm:hidden">
             <Menu className="h-5 w-5" style={{ color: PETROL }} />
           </button>
           <button onClick={() => onNavigate("home")} className="text-sm font-black uppercase tracking-tight sm:text-base" style={{ color: PETROL }}>
             eritreantourism<span style={{ color: OCHRE }}>.com</span>
           </button>
         </div>
-        <nav className="hidden items-center gap-1 sm:flex">
-          <button onClick={() => onNavigate("explore")} className="rounded-md px-3 py-1.5 text-sm font-bold uppercase tracking-wide" style={{ color: PETROL }}>Explore</button>
-          <button onClick={() => onNavigate("home")} className="rounded-md px-3 py-1.5 text-sm font-bold uppercase tracking-wide" style={{ color: PETROL }}>Stay</button>
+        <nav className="hidden items-center gap-0.5 sm:flex">
+          {SITE_MAP.map((section) => (
+            <div key={section.id} className="relative" onMouseEnter={() => openNow(section.id)} onMouseLeave={closeSoon}>
+              <button
+                onClick={() => setOpenId(openId === section.id ? null : section.id)}
+                className="flex items-center gap-0.5 rounded-md px-2.5 py-1.5 text-xs font-bold uppercase tracking-wide lg:text-sm"
+                style={{ color: PETROL }}
+              >
+                {section.label}
+                <ChevronRight className={`h-3 w-3 transition-transform ${openId === section.id ? "-rotate-90" : "rotate-90"}`} />
+              </button>
+              {openId === section.id && (
+                <div
+                  className="absolute left-0 top-full z-40 mt-1 w-56 rounded-lg border-2 bg-white py-2 shadow-lg"
+                  style={{ borderColor: CARD_BORDER }}
+                >
+                  {section.items.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => { setOpenId(null); onNavigateItem(item); }}
+                      className="flex w-full items-center justify-between px-4 py-2 text-left text-sm hover:bg-gray-50"
+                      style={{ color: item.status === "live" ? PETROL : "#a39c8c" }}
+                    >
+                      <span className={item.status === "live" ? "font-semibold" : ""}>{item.label}</span>
+                      {item.status === "soon" && (
+                        <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold text-gray-400">Soon</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
         </nav>
       </div>
     </header>
@@ -1165,7 +1206,7 @@ export default function App() {
   return (
     <div className="min-h-screen" style={{ background: PLASTER, fontFamily: "ui-sans-serif, system-ui, sans-serif" }}>
       {view !== "checkout" && view !== "confirmation" && (
-        <NavHeader onOpenMenu={() => setDrawerOpen(true)} onNavigate={setView} />
+        <NavHeader onOpenMenu={() => setDrawerOpen(true)} onNavigate={setView} onNavigateItem={handleDrawerNavigate} />
       )}
       <SideDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} onNavigateItem={handleDrawerNavigate} />
 
