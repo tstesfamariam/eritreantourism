@@ -268,7 +268,7 @@ function SideDrawer({ open, onClose, onNavigateItem }) {
   );
 }
 
-function NavHeader({ onOpenMenu, onNavigate, onNavigateItem, onBookStay }) {
+function NavHeader({ onOpenMenu, onNavigate, onNavigateItem }) {
   const [openId, setOpenId] = useState(null);
   const closeTimer = useRef(null);
 
@@ -330,7 +330,7 @@ function NavHeader({ onOpenMenu, onNavigate, onNavigateItem, onBookStay }) {
               )}
             </div>
           ))}
-          <button onClick={onBookStay} className="font-body ml-3 px-4 py-2 text-[12px] font-bold uppercase tracking-wider text-white" style={{ background: ROSE }}>
+          <button onClick={() => onNavigate("home")} className="font-body ml-3 px-4 py-2 text-[12px] font-bold uppercase tracking-wider text-white" style={{ background: ROSE }}>
             Book a stay
           </button>
         </nav>
@@ -1042,7 +1042,7 @@ function Home({ hotels, searchBarProps, onSearch, onOpenHotel, onExploreAsmara, 
             </p>
           </div>
         </div>
-        <div className="relative z-20 mx-auto -mb-1 max-w-4xl px-4 sm:px-6" id="book-search">
+        <div className="relative z-20 mx-auto -mb-1 max-w-4xl px-4 sm:px-6">
           <div className="translate-y-1/2">
             <div className="border-2 p-4" style={{ background: PLASTER, borderColor: INK, boxShadow: "8px 8px 0 rgba(18,58,43,0.9)" }}>
               <SearchBar {...searchBarProps} onSearch={onSearch} />
@@ -1406,15 +1406,7 @@ export default function App() {
     <div className="font-body min-h-screen" style={{ background: PLASTER, fontFamily: "'Archivo', ui-sans-serif, system-ui, sans-serif" }}>
       <style>{FONT_CSS}</style>
       {view !== "checkout" && view !== "confirmation" && (
-        <NavHeader
-          onOpenMenu={() => setDrawerOpen(true)}
-          onNavigate={setView}
-          onNavigateItem={handleDrawerNavigate}
-          onBookStay={() => {
-            setView("home");
-            setTimeout(() => document.getElementById("book-search")?.scrollIntoView({ behavior: "smooth", block: "center" }), 80);
-          }}
-        />
+        <NavHeader onOpenMenu={() => setDrawerOpen(true)} onNavigate={setView} onNavigateItem={handleDrawerNavigate} />
       )}
       <SideDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} onNavigateItem={handleDrawerNavigate} />
 
