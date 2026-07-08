@@ -62,68 +62,33 @@ function hotelFromPrice(hotel, bookings, checkIn, checkOut) {
 }
 
 /* ------------------------------------------------------------------
-   DESIGN TOKENS — palette derived from the Eritrean flag, deepened to
-   print-poster registers: green (agriculture/highlands), red (the
-   sacrifice of the independence struggle), blue (Red Sea), gold (the
-   olive-wreath emblem). The colonial-era heritage lives in the
-   typography and poster layout; the color belongs to the independence
-   generation.
+   DESIGN TOKENS
 ------------------------------------------------------------------- */
 
-const INK = "#123A2B";        // highland green ink (structural dark)
-const GREEN = "#2F7C52";      // living green — "live" markers, growth
-const GREEN_DEEP = "#1A5038";
-const PLASTER = "#F6F0E0";    // sun-bleached plaster (heritage neutral)
-const PLASTER_DIM = "#ECE5CF";
-const PETROL = "#1F5673";     // Red Sea blue
-const PETROL_DEEP = "#143D52";
-const OCHRE = "#D9A22E";      // olive-wreath gold
-const OCHRE_DEEP = "#B27F14";
-const ROSE = "#B5342A";       // independence red — used with intent
-const SAGE = GREEN;           // legacy alias (confirmation borders)
-const CARD_BORDER = "#D6CFB4";
+const INK = "#1C2622";
+const PLASTER = "#EFE8D8";
+const PETROL = "#1B4750";
+const OCHRE = "#C4842E";
+const SAGE = "#93A98C";
+const CARD_BORDER = "#ddd6c4";
 
-const FONT_CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Big+Shoulders:opsz,wght@10..72,400;10..72,600;10..72,800&family=Archivo:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Space+Grotesk:wght@400;500&display=swap');
-.font-display { font-family: 'Big Shoulders', sans-serif; }
-.font-body { font-family: 'Archivo', sans-serif; }
-.font-utility { font-family: 'Space Grotesk', monospace; }
-.duotone { filter: grayscale(1) contrast(1.05) brightness(0.95); }
-.poster-card:hover .poster-img { transform: scale(1.04); }
-.poster-img { transition: transform .6s ease; }
-::selection { background: ${OCHRE}; color: ${INK}; }
-`;
-
-/* Tricolor speed lines: futurist motion motif carrying the flag's
-   green / red / blue in its top-to-bottom order. */
 function SpeedLines({ className = "" }) {
   return (
-    <div className={`flex flex-col gap-[4px] ${className}`} aria-hidden="true">
-      <div className="h-[3px] w-16" style={{ background: GREEN }} />
-      <div className="h-[3px] w-11" style={{ background: ROSE }} />
-      <div className="h-[3px] w-6" style={{ background: PETROL }} />
+    <div className={`flex flex-col gap-[3px] ${className}`} aria-hidden="true">
+      <div className="h-[2px] w-10" style={{ background: OCHRE }} />
+      <div className="h-[2px] w-7" style={{ background: OCHRE, opacity: 0.6 }} />
+      <div className="h-[2px] w-4" style={{ background: OCHRE, opacity: 0.35 }} />
     </div>
   );
 }
 
-/* Duotone poster image: grayscale photo + tonal multiply + paper lift */
-function Poster({ seed, w, h, className = "", tone = PETROL_DEEP }) {
+function Hero({ imageSeed = "asmara-hero-1", height = "h-72 sm:h-96", children }) {
   return (
-    <div className={`relative overflow-hidden ${className}`}>
-      <img src={imgUrl(seed, w, h)} alt="" className="duotone poster-img absolute inset-0 h-full w-full object-cover" />
-      <div className="absolute inset-0 mix-blend-multiply" style={{ background: tone }} />
-      <div className="absolute inset-0 mix-blend-soft-light" style={{ background: PLASTER, opacity: 0.35 }} />
-    </div>
-  );
-}
-
-function Hero({ imageSeed = "asmara-hero-1", height = "h-72 sm:h-96", children, tone = GREEN_DEEP }) {
-  return (
-    <div className={`relative ${height} overflow-hidden`} style={{ background: tone }}>
-      <Poster seed={imageSeed} w={1600} h={700} className="absolute inset-0" tone={tone} />
+    <div className={`relative ${height} overflow-hidden`}>
+      <img src={imgUrl(imageSeed, 1600, 700)} alt="" className="absolute inset-0 h-full w-full object-cover" />
       <div
         className="absolute inset-0"
-        style={{ background: "linear-gradient(180deg, rgba(18,58,43,0.05) 0%, rgba(18,58,43,0.45) 60%, rgba(18,58,43,0.8) 100%)" }}
+        style={{ background: `linear-gradient(180deg, rgba(28,38,34,0.15) 0%, rgba(27,71,80,0.55) 55%, ${PETROL} 100%)` }}
       />
       <div className="relative z-10 flex h-full flex-col justify-end px-5 pb-6 sm:px-8">{children}</div>
     </div>
@@ -281,48 +246,42 @@ function NavHeader({ onOpenMenu, onNavigate, onNavigateItem }) {
   }
 
   return (
-    <header className="sticky top-0 z-30" style={{ background: PLASTER, borderBottom: `1px solid ${CARD_BORDER}` }}>
-      {/* utility strip */}
-      <div className="font-utility hidden items-center justify-between px-6 py-1.5 text-[10px] uppercase tracking-[0.2em] sm:flex" style={{ background: INK, color: PLASTER_DIM }}>
-        <span>Asmara · 15.34°N 38.93°E · alt. 2,325 m</span>
-        <span>Nakfa (ERN) · hotels priced in USD</span>
-      </div>
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
+    <header className="sticky top-0 z-30 border-b bg-white" style={{ borderColor: CARD_BORDER }}>
+      <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-8">
         <div className="flex items-center gap-3">
-          <button onClick={onOpenMenu} aria-label="Open menu" className="rounded-md p-1 hover:bg-black/5 lg:hidden">
+          <button onClick={onOpenMenu} aria-label="Open menu" className="rounded-md p-1 hover:bg-gray-50 sm:hidden">
             <Menu className="h-5 w-5" style={{ color: PETROL }} />
           </button>
-          <button onClick={() => onNavigate("home")} className="flex items-center gap-2.5">
-            <SpeedLines className="hidden scale-75 sm:flex" />
-            <span className="font-display text-xl uppercase tracking-wide" style={{ color: INK, fontWeight: 800 }}>
-              Eritrean<span style={{ color: OCHRE_DEEP }}>Tourism</span>
-            </span>
+          <button onClick={() => onNavigate("home")} className="text-sm font-black uppercase tracking-tight sm:text-base" style={{ color: PETROL }}>
+            eritreantourism<span style={{ color: OCHRE }}>.com</span>
           </button>
         </div>
-        <nav className="hidden items-center lg:flex">
+        <nav className="hidden items-center gap-0.5 sm:flex">
           {SITE_MAP.map((section) => (
             <div key={section.id} className="relative" onMouseEnter={() => openNow(section.id)} onMouseLeave={closeSoon}>
               <button
                 onClick={() => setOpenId(openId === section.id ? null : section.id)}
-                className="font-body flex items-center gap-1 px-2.5 py-2 text-[12px] font-semibold uppercase tracking-wider xl:text-[13px]"
-                style={{ color: openId === section.id ? OCHRE_DEEP : INK }}
+                className="flex items-center gap-0.5 rounded-md px-2.5 py-1.5 text-xs font-bold uppercase tracking-wide lg:text-sm"
+                style={{ color: PETROL }}
               >
                 {section.label}
                 <ChevronRight className={`h-3 w-3 transition-transform ${openId === section.id ? "-rotate-90" : "rotate-90"}`} />
               </button>
               {openId === section.id && (
-                <div className="absolute left-0 top-full z-40 w-56 border shadow-lg" style={{ background: PLASTER, borderColor: CARD_BORDER }}>
-                  <div className="h-[3px]" style={{ background: OCHRE }} />
-                  {section.items.map((item, i) => (
+                <div
+                  className="absolute left-0 top-full z-40 mt-1 w-56 rounded-lg border-2 bg-white py-2 shadow-lg"
+                  style={{ borderColor: CARD_BORDER }}
+                >
+                  {section.items.map((item) => (
                     <button
                       key={item.id}
                       onClick={() => { setOpenId(null); onNavigateItem(item); }}
-                      className="font-body flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition-all hover:pl-5"
-                      style={{ color: item.status === "live" ? INK : "#a39c8c", borderTop: i ? `1px solid ${CARD_BORDER}` : "none" }}
+                      className="flex w-full items-center justify-between px-4 py-2 text-left text-sm hover:bg-gray-50"
+                      style={{ color: item.status === "live" ? PETROL : "#a39c8c" }}
                     >
                       <span className={item.status === "live" ? "font-semibold" : ""}>{item.label}</span>
                       {item.status === "soon" && (
-                        <span className="font-utility text-[9px] uppercase tracking-widest" style={{ color: ROSE }}>soon</span>
+                        <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold text-gray-400">Soon</span>
                       )}
                     </button>
                   ))}
@@ -330,9 +289,6 @@ function NavHeader({ onOpenMenu, onNavigate, onNavigateItem }) {
               )}
             </div>
           ))}
-          <button onClick={() => onNavigate("home")} className="font-body ml-3 px-4 py-2 text-[12px] font-bold uppercase tracking-wider text-white" style={{ background: ROSE }}>
-            Book a stay
-          </button>
         </nav>
       </div>
     </header>
@@ -392,8 +348,8 @@ function SearchBar({ query, setQuery, checkIn, setCheckIn, checkOut, setCheckOut
       <div className="flex items-end">
         <button
           onClick={onSearch}
-          className="font-body flex w-full items-center justify-center gap-2 rounded-md py-2.5 text-sm font-bold uppercase tracking-wide text-white transition-transform active:translate-y-[1px]"
-          style={{ background: ROSE }}
+          className="flex w-full items-center justify-center gap-2 rounded-md py-2.5 text-sm font-bold uppercase tracking-wide text-white"
+          style={{ background: OCHRE }}
         >
           <Search className="h-4 w-4" /> Search
         </button>
@@ -947,190 +903,57 @@ function AdminView({ hotels, onAddHotel, onBack }) {
    as "Soon" tabs — see the generalized schema for how they'll plug in.
 ------------------------------------------------------------------- */
 
-/* Explore rail destinations — static content entries; Asmara routes to
-   the live content page, the rest to ComingSoon until their guides exist. */
-const RAIL_PLACES = [
-  { id: "asmara", name: "Asmara", sub: "La Piccola Roma", meta: "2,325 m · UNESCO 2017", seed: "er-asmara", live: true },
-  { id: "massawa", name: "Massawa", sub: "Pearl of the Red Sea", meta: "Ottoman & coral-stone port", seed: "er-massawa" },
-  { id: "keren", name: "Keren", sub: "City of gardens", meta: "Monday camel market", seed: "er-keren" },
-  { id: "dahlak", name: "Dahlak", sub: "126-island archipelago", meta: "Diving · pristine reefs", seed: "er-dahlak" },
-  { id: "qohaito", name: "Qohaito", sub: "Pre-Aksumite ruins", meta: "Highland plateau site", seed: "er-qohaito" },
-];
-
-function StayCard({ hotel, onClick }) {
+function PromoCard({ hotel, onClick }) {
   const fromPrice = Math.min(...hotel.rooms.map((r) => r.priceUsd));
   return (
     <button
       onClick={onClick}
-      className="poster-card group block w-full overflow-hidden border-2 bg-white text-left"
-      style={{ borderColor: INK, boxShadow: "6px 6px 0 rgba(18,58,43,0.85)" }}
+      className="flex flex-col overflow-hidden rounded-xl border-2 bg-white text-left shadow-sm transition-shadow hover:shadow-md"
+      style={{ borderColor: CARD_BORDER }}
     >
-      <div className="relative h-52 overflow-hidden sm:h-60">
-        <Poster seed={hotel.images[0]} w={800} h={480} className="absolute inset-0" tone={PETROL_DEEP} />
-        <div className="absolute left-3 top-3 flex items-center gap-1 px-2 py-1" style={{ background: INK }}>
-          <Star className="h-3 w-3" style={{ color: OCHRE, fill: OCHRE }} />
-          <span className="font-utility text-[11px] font-bold" style={{ color: PLASTER }}>{hotel.rating}</span>
-          <span className="font-utility text-[10px]" style={{ color: "rgba(246,240,224,0.6)" }}>({hotel.reviews})</span>
+      <img src={imgUrl(hotel.images[0], 500, 320)} alt={hotel.name} className="h-40 w-full object-cover" />
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="font-bold" style={{ color: INK }}>{hotel.name}</h3>
+          <span className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-bold text-white" style={{ background: PETROL }}>
+            <Star className="h-3 w-3 fill-white" /> {hotel.rating}
+          </span>
         </div>
-      </div>
-      <div className="flex items-end justify-between gap-3 p-4">
-        <div>
-          <h3 className="font-display text-xl uppercase" style={{ color: INK, fontWeight: 800 }}>{hotel.name}</h3>
-          <p className="font-body mt-0.5 flex items-center gap-1 text-xs" style={{ color: PETROL }}>
-            <MapPin className="h-3 w-3" /> {hotel.area}
-          </p>
-        </div>
-        <div className="shrink-0 text-right">
-          <p className="font-utility text-[10px] uppercase tracking-widest" style={{ color: PETROL }}>from</p>
-          <p className="font-display text-2xl" style={{ color: OCHRE_DEEP, fontWeight: 800 }}>
-            ${fromPrice}<span className="font-body text-xs font-normal" style={{ color: PETROL }}>/night</span>
-          </p>
-        </div>
-      </div>
-      <div className="font-body flex items-center justify-between px-4 py-2.5 text-xs font-bold uppercase tracking-wider" style={{ background: PLASTER_DIM, color: INK, borderTop: `2px solid ${INK}` }}>
-        Check live availability
-        <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+        <p className="mt-0.5 flex items-center gap-1 text-xs text-gray-500"><MapPin className="h-3 w-3" /> {hotel.area}</p>
+        <p className="mt-2 text-right text-sm">
+          <span className="text-gray-400">from </span>
+          <span className="text-lg font-black" style={{ color: OCHRE }}>${fromPrice}</span>
+          <span className="text-xs text-gray-400">/night</span>
+        </p>
       </div>
     </button>
   );
 }
 
-function Home({ hotels, searchBarProps, onSearch, onOpenHotel, onExploreAsmara, onComingSoon, onNavigateItem }) {
+function Home({ hotels, searchBarProps, onSearch, onOpenHotel }) {
   return (
     <div>
-      {/* ---- poster hero ---- */}
-      <section className="relative overflow-hidden" style={{ background: GREEN_DEEP }}>
-        <Poster seed="er-hero-highlands" w={1800} h={1000} className="absolute inset-0" tone={GREEN_DEEP} />
-        <div className="pointer-events-none absolute inset-x-6 top-6 hidden h-[2px] sm:block" style={{ background: OCHRE, opacity: 0.7 }} />
-        <div className="relative z-10 mx-auto max-w-6xl px-4 pb-36 pt-14 sm:px-6 sm:pb-40 sm:pt-20">
-          <p className="font-utility text-[11px] uppercase tracking-[0.28em]" style={{ color: "rgba(246,240,224,0.75)" }}>
-            Est. on the Red Sea · Horn of Africa
-          </p>
-          <h1
-            className="font-display mt-3 uppercase leading-[0.86]"
-            style={{ color: PLASTER, fontWeight: 800, fontSize: "clamp(3.4rem, 12vw, 9rem)", letterSpacing: "0.01em" }}
-          >
-            Visit<br />Eritrea
-          </h1>
-          <div className="mt-5 flex items-center gap-4">
-            <SpeedLines />
-            <p className="font-body max-w-md text-sm sm:text-base" style={{ color: "rgba(246,240,224,0.85)" }}>
-              Modernist Asmara, coral-stone Massawa, and 126 islands of the Dahlak —
-              one guide for everything, bookable in USD.
-            </p>
-          </div>
+      <Hero imageSeed="asmara-hero-1">
+        <SpeedLines className="mb-2" />
+        <h1 className="max-w-lg text-2xl font-black leading-tight text-white sm:text-4xl">
+          Everything you need to visit Eritrea, in one place
+        </h1>
+        <p className="mt-1 mb-5 max-w-md text-xs font-medium uppercase tracking-widest text-white/80 sm:text-sm">
+          Hotels today — tours, rentals &amp; dining coming soon. Pay in USD, book with confidence.
+        </p>
+        <div className="max-w-3xl">
+          <SearchBar {...searchBarProps} onSearch={onSearch} />
         </div>
-        <div className="relative z-20 mx-auto -mb-1 max-w-4xl px-4 sm:px-6">
-          <div className="translate-y-1/2">
-            <div className="border-2 p-4" style={{ background: PLASTER, borderColor: INK, boxShadow: "8px 8px 0 rgba(18,58,43,0.9)" }}>
-              <SearchBar {...searchBarProps} onSearch={onSearch} />
-              <p className="font-utility mt-2 text-[10px] uppercase tracking-[0.18em]" style={{ color: PETROL, opacity: 0.7 }}>
-                Live availability · pay in USD · settled locally
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
+      </Hero>
 
-      {/* ---- explore poster rail ---- */}
-      <section className="pb-4 pt-40 sm:pt-44" style={{ background: PLASTER }}>
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="flex items-end justify-between">
-            <div>
-              <p className="font-utility text-[11px] uppercase tracking-[0.28em]" style={{ color: PETROL }}>Explore</p>
-              <h2 className="font-display mt-1 uppercase" style={{ color: INK, fontWeight: 800, fontSize: "clamp(2rem,5vw,3.2rem)", lineHeight: 0.95 }}>
-                Five places to know
-              </h2>
-            </div>
-            <p className="font-utility hidden text-[11px] uppercase tracking-[0.2em] sm:block" style={{ color: PETROL }}>drag / scroll →</p>
-          </div>
+      <div className="mx-auto max-w-4xl px-4 pb-16 pt-8 sm:px-8">
+        <h2 className="mb-4 text-xs font-bold uppercase tracking-wide" style={{ color: PETROL }}>Popular hotels in Asmara</h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {hotels.map((h) => (
+            <PromoCard key={h.id} hotel={h} onClick={() => onOpenHotel(h.id)} />
+          ))}
         </div>
-        <div className="mt-8 overflow-x-auto pb-6" style={{ scrollbarWidth: "thin" }}>
-          <div className="mx-auto flex w-max gap-5 px-4 sm:px-6" style={{ minWidth: "100%" }}>
-            {RAIL_PLACES.map((p, i) => (
-              <button
-                key={p.id}
-                onClick={() => (p.live ? onExploreAsmara() : onComingSoon(p.name))}
-                className="poster-card group relative block h-[380px] w-[260px] shrink-0 overflow-hidden border-2 text-left sm:h-[420px] sm:w-[300px]"
-                style={{ borderColor: INK, boxShadow: "6px 6px 0 rgba(18,58,43,0.85)" }}
-              >
-                <Poster seed={p.seed} w={600} h={840} className="absolute inset-0" tone={i % 2 ? GREEN_DEEP : PETROL_DEEP} />
-                <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, transparent 40%, rgba(18,58,43,0.88) 100%)" }} />
-                <div className="absolute inset-x-0 top-0 flex items-center justify-between p-3">
-                  <span className="font-utility text-[10px] uppercase tracking-[0.25em]" style={{ color: PLASTER }}>{String(i + 1).padStart(2, "0")}° stop</span>
-                  {p.live ? (
-                    <span className="font-utility px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-white" style={{ background: GREEN }}>guide live</span>
-                  ) : (
-                    <span className="font-utility text-[9px] uppercase tracking-widest" style={{ color: "rgba(246,240,224,0.7)" }}>soon</span>
-                  )}
-                </div>
-                <div className="absolute inset-x-0 bottom-0 p-4">
-                  <p className="font-utility text-[10px] uppercase tracking-[0.22em]" style={{ color: OCHRE }}>{p.sub}</p>
-                  <h3 className="font-display mt-0.5 uppercase" style={{ color: PLASTER, fontWeight: 800, fontSize: "2.1rem", lineHeight: 0.9 }}>{p.name}</h3>
-                  <p className="font-body mt-1.5 text-xs" style={{ color: "rgba(246,240,224,0.75)" }}>{p.meta}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ---- stay: live hotels from Supabase ---- */}
-      <section className="py-16" style={{ background: PLASTER }}>
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="flex items-end justify-between">
-            <div>
-              <p className="font-utility text-[11px] uppercase tracking-[0.28em]" style={{ color: GREEN }}>Stay · live now</p>
-              <h2 className="font-display mt-1 uppercase" style={{ color: INK, fontWeight: 800, fontSize: "clamp(2rem,5vw,3.2rem)", lineHeight: 0.95 }}>
-                Book tonight in Asmara
-              </h2>
-            </div>
-          </div>
-          <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
-            {hotels.map((h) => (
-              <StayCard key={h.id} hotel={h} onClick={() => onOpenHotel(h.id)} />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ---- directory grid ---- */}
-      <section className="py-16" style={{ background: PLASTER_DIM, borderTop: `2px solid ${INK}` }}>
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <p className="font-utility text-[11px] uppercase tracking-[0.28em]" style={{ color: PETROL }}>The full guide</p>
-          <h2 className="font-display mt-1 max-w-xl uppercase" style={{ color: INK, fontWeight: 800, fontSize: "clamp(2rem,5vw,3.2rem)", lineHeight: 0.95 }}>
-            Everything a visit needs, one directory
-          </h2>
-          <div className="mt-8 grid grid-cols-2 gap-px border-2 lg:grid-cols-4" style={{ background: INK, borderColor: INK }}>
-            {SITE_MAP.map((section) => {
-              const liveItem = section.items.find((it) => it.status === "live");
-              return (
-                <button
-                  key={section.id}
-                  onClick={() => onNavigateItem(liveItem || { ...section.items[0], label: section.label })}
-                  className="group flex flex-col gap-3 p-5 text-left transition-colors hover:bg-white"
-                  style={{ background: PLASTER }}
-                >
-                  <div className="flex items-center justify-between">
-                    <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" style={{ color: liveItem ? OCHRE_DEEP : PETROL }} />
-                    {liveItem ? (
-                      <span className="font-utility px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-white" style={{ background: GREEN }}>live</span>
-                    ) : (
-                      <span className="font-utility text-[9px] uppercase tracking-widest" style={{ color: ROSE }}>soon</span>
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="font-display text-lg uppercase" style={{ color: INK, fontWeight: 800 }}>{section.label}</h3>
-                    <p className="font-body mt-0.5 text-xs" style={{ color: PETROL }}>
-                      {section.items.slice(0, 3).map((it) => it.label).join(" · ")}
-                    </p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </section>
+      </div>
     </div>
   );
 }
@@ -1381,8 +1204,7 @@ export default function App() {
   }
 
   return (
-    <div className="font-body min-h-screen" style={{ background: PLASTER, fontFamily: "'Archivo', ui-sans-serif, system-ui, sans-serif" }}>
-      <style>{FONT_CSS}</style>
+    <div className="min-h-screen" style={{ background: PLASTER, fontFamily: "ui-sans-serif, system-ui, sans-serif" }}>
       {view !== "checkout" && view !== "confirmation" && (
         <NavHeader onOpenMenu={() => setDrawerOpen(true)} onNavigate={setView} onNavigateItem={handleDrawerNavigate} />
       )}
@@ -1394,9 +1216,6 @@ export default function App() {
           searchBarProps={searchBarProps}
           onSearch={() => setView("results")}
           onOpenHotel={(id) => { setOpenHotelId(id); setView("hotel"); }}
-          onExploreAsmara={() => setView("content")}
-          onComingSoon={(label) => { setComingSoonLabel(label); setView("comingsoon"); }}
-          onNavigateItem={handleDrawerNavigate}
         />
       )}
 
@@ -1465,32 +1284,10 @@ export default function App() {
         <Confirmation hotel={openHotel} room={selectedRoom} booking={lastBooking} onDone={() => setView("home")} />
       )}
 
-      <footer style={{ background: INK }}>
-        <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-          <div className="flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-end">
-            <div>
-              <SpeedLines />
-              <p className="font-display mt-3 text-2xl uppercase" style={{ color: PLASTER, fontWeight: 800 }}>
-                Eritrean<span style={{ color: OCHRE }}>Tourism</span>
-              </p>
-              <p className="font-body mt-2 max-w-sm text-sm" style={{ color: "rgba(246,240,224,0.6)" }}>
-                The definitive guide to visiting Eritrea — culture and places first,
-                stays and experiences bookable when you're ready.
-              </p>
-            </div>
-            <div className="font-utility space-y-1.5 text-[11px] uppercase tracking-[0.2em]" style={{ color: "rgba(246,240,224,0.55)" }}>
-              <p>Bookings settled locally in Eritrea</p>
-              <p>All hotel rates quoted in USD</p>
-              <button onClick={() => setView("partner")} className="underline" style={{ color: "rgba(246,240,224,0.4)" }}>
-                Partner &amp; admin access
-              </button>
-            </div>
-          </div>
-          <div className="font-utility mt-8 flex flex-col gap-2 border-t pt-4 text-[10px] uppercase tracking-[0.2em] sm:flex-row sm:justify-between" style={{ borderColor: "rgba(246,240,224,0.15)", color: "rgba(246,240,224,0.4)" }}>
-            <span>© {new Date().getFullYear()} eritreantourism.com</span>
-            <span>Photography placeholders pending licensed images</span>
-          </div>
-        </div>
+      <footer className="border-t px-4 py-4 text-center sm:px-8" style={{ borderColor: CARD_BORDER }}>
+        <button onClick={() => setView("partner")} className="text-[11px] text-gray-400 underline">
+          Hotel partner or platform admin? Manage your property here
+        </button>
       </footer>
     </div>
   );
