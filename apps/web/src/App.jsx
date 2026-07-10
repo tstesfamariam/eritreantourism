@@ -4,10 +4,15 @@ import {
   ChevronLeft, ChevronRight, CheckCircle2, SlidersHorizontal, LogIn, Hotel, ShieldCheck,
   Plus, Trash2, Building2, CalendarDays, X, ArrowLeft, Car, Compass, Menu, Landmark, Clock
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import {
   fetchHotels, fetchBookingsForListings, createBooking,
   updateListing, addListing, removeListing, addHotelPartner,
 } from "./lib/bookingApi";
+import {
+  INK, GREEN, GREEN_DEEP, PLASTER, PLASTER_DIM, PETROL, PETROL_DEEP,
+  OCHRE, OCHRE_DEEP, ROSE, SAGE, CARD_BORDER, FONT_CSS, imgUrl,
+} from "./lib/theme";
 
 /* ------------------------------------------------------------------
    DATA LAYER — backed by Supabase (see src/lib/bookingApi.js and
@@ -22,8 +27,6 @@ const AMENITY_META = {
   restaurant: { label: "Restaurant", Icon: UtensilsCrossed },
   ac: { label: "Air conditioning", Icon: Wind },
 };
-
-const imgUrl = (seed, w = 800, h = 500) => `https://picsum.photos/seed/${seed}/${w}/${h}`;
 
 /* ------------------------------------------------------------------
    AVAILABILITY ENGINE
@@ -60,39 +63,6 @@ function hotelFromPrice(hotel, bookings, checkIn, checkOut) {
   if (available.length === 0) return null;
   return Math.min(...available.map((x) => x.room.priceUsd));
 }
-
-/* ------------------------------------------------------------------
-   DESIGN TOKENS — palette derived from the Eritrean flag, deepened to
-   print-poster registers: green (agriculture/highlands), red (the
-   sacrifice of the independence struggle), blue (Red Sea), gold (the
-   olive-wreath emblem). The colonial-era heritage lives in the
-   typography and poster layout; the color belongs to the independence
-   generation.
-------------------------------------------------------------------- */
-
-const INK = "#123A2B";        // highland green ink (structural dark)
-const GREEN = "#2F7C52";      // living green — "live" markers, growth
-const GREEN_DEEP = "#1A5038";
-const PLASTER = "#F6F0E0";    // sun-bleached plaster (heritage neutral)
-const PLASTER_DIM = "#ECE5CF";
-const PETROL = "#1F5673";     // Red Sea blue
-const PETROL_DEEP = "#143D52";
-const OCHRE = "#D9A22E";      // olive-wreath gold
-const OCHRE_DEEP = "#B27F14";
-const ROSE = "#B5342A";       // independence red — used with intent
-const SAGE = GREEN;           // legacy alias (confirmation borders)
-const CARD_BORDER = "#D6CFB4";
-
-const FONT_CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Big+Shoulders:opsz,wght@10..72,400;10..72,600;10..72,800&family=Archivo:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Space+Grotesk:wght@400;500&display=swap');
-.font-display { font-family: 'Big Shoulders', sans-serif; }
-.font-body { font-family: 'Archivo', sans-serif; }
-.font-utility { font-family: 'Space Grotesk', monospace; }
-.duotone { filter: grayscale(1) contrast(1.05) brightness(0.95); }
-.poster-card:hover .poster-img { transform: scale(1.04); }
-.poster-img { transition: transform .6s ease; }
-::selection { background: ${OCHRE}; color: ${INK}; }
-`;
 
 /* Tricolor speed lines: futurist motion motif carrying the flag's
    green / red / blue in its top-to-bottom order. */
@@ -162,7 +132,7 @@ const SITE_MAP = [
   {
     id: "eat", label: "Eat",
     items: [
-      { id: "eat-restaurants", label: "Restaurants", status: "soon" },
+      { id: "eat-restaurants", label: "Restaurants", status: "live", route: "/eat" },
       { id: "eat-coffee", label: "Coffee Houses", status: "soon" },
       { id: "eat-traditional", label: "Traditional Food", status: "soon" },
     ],
@@ -1297,6 +1267,7 @@ function AsmaraContentPage({ onBack, onBrowseHotels }) {
 }
 
 export default function App() {
+  const navigate = useNavigate();
   const [state, setState] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [comingSoonLabel, setComingSoonLabel] = useState("");
@@ -1393,6 +1364,10 @@ export default function App() {
     if (item.status === "soon") {
       setComingSoonLabel(item.label);
       setView("comingsoon");
+      return;
+    }
+    if (item.route) {
+      navigate(item.route);
       return;
     }
     if (item.view === "content") {
