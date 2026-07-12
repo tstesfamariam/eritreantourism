@@ -2,12 +2,15 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Search, MapPin, Star, Wifi, Waves, ParkingCircle, Coffee, UtensilsCrossed, Wind,
   ChevronLeft, ChevronRight, CheckCircle2, SlidersHorizontal, LogIn, Hotel, ShieldCheck,
-  Plus, Trash2, Building2, CalendarDays, X, ArrowLeft, Car, Compass, Menu, Landmark, Clock
+  Plus, Trash2, Building2, CalendarDays, X, ArrowLeft, Car, Compass, Menu, Landmark, Clock,
+  FileText, Printer, LogOut, UserPlus, Sunrise, Sunset
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   fetchHotels, fetchBookingsForListings, createBooking,
   updateListing, addListing, removeListing, addHotelPartner,
+  createFrontDeskBooking, checkInBooking, checkOutBooking,
+  fetchInvoiceForBooking, createInvoice,
 } from "./lib/bookingApi";
 import {
   INK, GREEN, GREEN_DEEP, PLASTER, PLASTER_DIM, PETROL, PETROL_DEEP,
@@ -754,7 +757,7 @@ function Confirmation({ hotel, room, booking, onDone }) {
    PARTNER AREA (hotel portal + admin) — reached only via footer link
 ------------------------------------------------------------------- */
 
-function PartnerArea({ hotels, bookings, onUpdateRoom, onAddRoom, onRemoveRoom, onAddHotel, onExit }) {
+function PartnerArea({ hotels, bookings, onUpdateRoom, onAddRoom, onRemoveRoom, onAddHotel, onCreateFrontDeskBooking, onCheckIn, onCheckOut, onExit }) {
   const [section, setSection] = useState("choose");
 
   return (
@@ -789,6 +792,9 @@ function PartnerArea({ hotels, bookings, onUpdateRoom, onAddRoom, onRemoveRoom, 
             onUpdateRoom={onUpdateRoom}
             onAddRoom={onAddRoom}
             onRemoveRoom={onRemoveRoom}
+            onCreateFrontDeskBooking={onCreateFrontDeskBooking}
+            onCheckIn={onCheckIn}
+            onCheckOut={onCheckOut}
             onBack={() => setSection("choose")}
           />
         )}
@@ -798,11 +804,417 @@ function PartnerArea({ hotels, bookings, onUpdateRoom, onAddRoom, onRemoveRoom, 
   );
 }
 
-function HotelPortal({ hotels, bookings, onUpdateRoom, onAddRoom, onRemoveRoom, onBack }) {
+/* ---- Front-desk helpers (walk-in/phone bookings, check-in/out, invoices) ---- */
+
+function todayLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+const SOURCE_META = {
+  platform: { label: "Online", bg: PETROL },
+  walk_in: { label: "Walk-in", bg: OCHRE_DEEP },
+  phone: { label: "Phone", bg: GREEN },
+  email: { label: "Email", bg: INK },
+};
+
+const PAYMENT_LABELS = {
+  online: "Paid online",
+  cash: "Cash",
+  card_local: "Card (local)",
+  bank_transfer: "Bank transfer",
+  other: "Other",
+};
+
+// Guests without an email get a synthesized placeholder (see bookingApi) — never show it.
+function displayEmail(email) {
+  return email && !email.startsWith("no-email+") ? email : null;
+}
+
+function SourceBadge({ source }) {
+  const meta = SOURCE_META[source] || SOURCE_META.platform;
+  return (
+    <span className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white" style={{ background: meta.bg }}>
+      {meta.label}
+    </span>
+  );
+}
+
+function StayStateChip({ booking }) {
+  if (booking.checkedOutAt)
+    return <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gray-500">Checked out</span>;
+  if (booking.checkedInAt)
+    return <span className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide" style={{ background: SAGE, color: INK }}>In-house</span>;
+  return null;
+}
+
+function LifecycleButtons({ booking, busyId, onCheckIn, onCheckOut }) {
+  const busy = busyId === booking.id;
+  if (booking.checkedOutAt) return null;
+  if (booking.checkedInAt) {
+    return (
+      <button disabled={busy} onClick={() => onCheckOut(booking.id)} className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-bold uppercase text-white disabled:opacity-50" style={{ background: PETROL }}>
+        <LogOut className="h-3 w-3" /> Check out
+      </button>
+    );
+  }
+  return (
+    <button disabled={busy} onClick={() => onCheckIn(booking.id)} className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-bold uppercase text-white disabled:opacity-50" style={{ background: GREEN }}>
+      <LogIn className="h-3 w-3" /> Check in
+    </button>
+  );
+}
+
+function FrontDeskToday({ hotel, bookings, busyId, onCheckIn, onCheckOut }) {
+  const today = todayLocal();
+  const roomName = (id) => hotel.rooms.find((r) => r.id === id)?.name || "Room";
+  const arrivals = bookings.filter((b) => b.checkIn === today && !b.checkedInAt && !b.checkedOutAt);
+  const departures = bookings.filter((b) => b.checkOut === today && !b.checkedOutAt);
+
+  const row = (b) => (
+    <div key={b.id} className="flex items-center justify-between gap-2 rounded-md bg-gray-50 px-3 py-2 text-sm">
+      <div className="min-w-0">
+        <p className="flex flex-wrap items-center gap-1.5 font-semibold">{b.guestName} <SourceBadge source={b.source} /></p>
+        <p className="text-xs text-gray-500">{roomName(b.roomId)} · <span className="font-mono">#{b.reference}</span></p>
+      </div>
+      <LifecycleButtons booking={b} busyId={busyId} onCheckIn={onCheckIn} onCheckOut={onCheckOut} />
+    </div>
+  );
+
+  return (
+    <div className="rounded-xl border-2 bg-white p-4" style={{ borderColor: CARD_BORDER }}>
+      <h4 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide" style={{ color: PETROL }}>
+        <Clock className="h-4 w-4" /> Front desk today · {today}
+      </h4>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide" style={{ color: GREEN }}>
+            <Sunrise className="h-3.5 w-3.5" /> Arrivals ({arrivals.length})
+          </p>
+          {arrivals.length === 0 ? <p className="text-xs text-gray-400">No arrivals due today.</p> : <div className="space-y-2">{arrivals.map(row)}</div>}
+        </div>
+        <div>
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide" style={{ color: OCHRE_DEEP }}>
+            <Sunset className="h-3.5 w-3.5" /> Departures ({departures.length})
+          </p>
+          {departures.length === 0 ? <p className="text-xs text-gray-400">No departures due today.</p> : <div className="space-y-2">{departures.map(row)}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NewBookingForm({ hotel, onCreate }) {
+  const [roomId, setRoomId] = useState(hotel.rooms[0]?.id || "");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [checkIn, setCheckIn] = useState(todayLocal());
+  const [checkOut, setCheckOut] = useState("");
+  const [source, setSource] = useState("walk_in");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [notes, setNotes] = useState("");
+  const [totalOverride, setTotalOverride] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [savedRef, setSavedRef] = useState("");
+
+  const room = hotel.rooms.find((r) => r.id === roomId);
+  const nights = dateRange(checkIn, checkOut).length;
+  const suggested = room && nights > 0 ? room.priceUsd * nights : 0;
+  const total = totalOverride !== "" ? Number(totalOverride) : suggested;
+
+  async function submit(e) {
+    e.preventDefault();
+    setError(""); setSavedRef("");
+    if (!room || !name.trim()) { setError("Guest name and room are required."); return; }
+    if (nights <= 0) { setError("Check-out must be after check-in."); return; }
+    setSaving(true);
+    try {
+      const saved = await onCreate({
+        roomId, guestName: name.trim(), guestEmail: email, checkIn, checkOut,
+        totalAmount: total, source, paymentMethod, notes,
+      });
+      setSavedRef(saved.reference);
+      setName(""); setEmail(""); setNotes(""); setTotalOverride(""); setCheckOut("");
+    } catch (err) {
+      console.error("front-desk booking failed", err);
+      setError(`${err.message || "Could not save the booking."}${err.code ? ` (${err.code})` : ""}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const selectCls = "w-full rounded-md border-2 bg-white px-3 py-2 text-sm outline-none";
+
+  return (
+    <form onSubmit={submit} className="rounded-xl border-2 bg-white p-4" style={{ borderColor: CARD_BORDER }}>
+      <h4 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide" style={{ color: PETROL }}>
+        <UserPlus className="h-4 w-4" /> New booking (walk-in / phone)
+      </h4>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Guest name">
+          <input className={inputCls} style={{ borderColor: PETROL }} value={name} onChange={(e) => setName(e.target.value)} placeholder="Guest full name" />
+        </Field>
+        <Field label="Email (optional)">
+          <input type="email" className={inputCls} style={{ borderColor: PETROL }} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="guest@email.com" />
+        </Field>
+        <Field label="Room">
+          <select className={selectCls} style={{ borderColor: PETROL }} value={roomId} onChange={(e) => setRoomId(e.target.value)}>
+            {hotel.rooms.map((r) => <option key={r.id} value={r.id}>{r.name} — ${r.priceUsd}/night</option>)}
+          </select>
+        </Field>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Check-in">
+            <input type="date" className={inputCls} style={{ borderColor: PETROL }} value={checkIn} onChange={(e) => setCheckIn(e.target.value)} />
+          </Field>
+          <Field label="Check-out">
+            <input type="date" min={checkIn} className={inputCls} style={{ borderColor: PETROL }} value={checkOut} onChange={(e) => setCheckOut(e.target.value)} />
+          </Field>
+        </div>
+        <Field label="Source">
+          <select className={selectCls} style={{ borderColor: PETROL }} value={source} onChange={(e) => setSource(e.target.value)}>
+            <option value="walk_in">Walk-in</option>
+            <option value="phone">Phone</option>
+            <option value="email">Email</option>
+          </select>
+        </Field>
+        <Field label="Payment method">
+          <select className={selectCls} style={{ borderColor: PETROL }} value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+            <option value="cash">Cash</option>
+            <option value="card_local">Card (local)</option>
+            <option value="bank_transfer">Bank transfer</option>
+            <option value="other">Other</option>
+          </select>
+        </Field>
+        <Field label={`Total USD${nights > 0 ? ` (${nights} night${nights > 1 ? "s" : ""} suggested $${suggested})` : ""}`}>
+          <input type="number" min={0} step="0.01" className={inputCls} style={{ borderColor: PETROL }} value={totalOverride} onChange={(e) => setTotalOverride(e.target.value)} placeholder={suggested ? `$${suggested}` : "0"} />
+        </Field>
+        <Field label="Notes (optional)">
+          <input className={inputCls} style={{ borderColor: PETROL }} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Late arrival, airport pickup…" />
+        </Field>
+      </div>
+      {error && <p className="mt-3 text-sm font-medium text-red-700">{error}</p>}
+      {savedRef && <p className="mt-3 text-sm font-semibold" style={{ color: GREEN }}>Booking saved — reference <span className="font-mono">#{savedRef}</span></p>}
+      <button type="submit" disabled={saving} className="mt-4 w-full rounded-md py-2.5 text-sm font-bold uppercase tracking-wide text-white disabled:opacity-50" style={{ background: OCHRE }}>
+        {saving ? "Saving…" : `Record booking${total > 0 ? ` — $${total}` : ""}`}
+      </button>
+    </form>
+  );
+}
+
+/* ---- Invoices ---- */
+
+function invoicePrefix(hotelName) {
+  const initials = hotelName.split(/\s+/).map((w) => w[0]).join("").toUpperCase().replace(/[^A-Z]/g, "");
+  return initials.slice(0, 3) || "INV";
+}
+
+function InvoiceModal({ hotel, booking, onClose }) {
+  const [invoice, setInvoice] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchInvoiceForBooking(booking.id)
+      .then((inv) => { if (!cancelled) { setInvoice(inv); setLoading(false); } })
+      .catch((err) => {
+        console.error("fetchInvoiceForBooking failed", err);
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [booking.id]);
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+        <div className="rounded-xl bg-white px-8 py-6 text-sm text-gray-400">Loading invoice…</div>
+      </div>
+    );
+  }
+  if (invoice) return <InvoicePrintView hotel={hotel} booking={booking} invoice={invoice} onClose={onClose} />;
+  return <InvoiceBuilder hotel={hotel} booking={booking} onGenerated={setInvoice} onClose={onClose} />;
+}
+
+function InvoiceBuilder({ hotel, booking, onGenerated, onClose }) {
+  const room = hotel.rooms.find((r) => r.id === booking.roomId);
+  const nights = dateRange(booking.checkIn, booking.checkOut).length || 1;
+  const nightly = booking.totalPaid ? Math.round((booking.totalPaid / nights) * 100) / 100 : room?.priceUsd || 0;
+  const [lines, setLines] = useState([
+    { description: `${room?.name || "Room"} · ${nights} night${nights > 1 ? "s" : ""}`, qty: nights, unitPriceUsd: nightly },
+  ]);
+  const [taxRate, setTaxRate] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const subtotal = lines.reduce((s, l) => s + (Number(l.qty) || 0) * (Number(l.unitPriceUsd) || 0), 0);
+  const tax = subtotal * ((Number(taxRate) || 0) / 100);
+
+  function setLine(i, patch) { setLines(lines.map((l, j) => (j === i ? { ...l, ...patch } : l))); }
+
+  async function generate() {
+    setError("");
+    const items = lines
+      .filter((l) => l.description.trim())
+      .map((l) => ({ description: l.description.trim(), qty: Number(l.qty) || 1, unitPriceUsd: Number(l.unitPriceUsd) || 0 }));
+    if (!items.length) { setError("Add at least one line item."); return; }
+    setSaving(true);
+    try {
+      const inv = await createInvoice({
+        bookingId: booking.id, partnerId: hotel.id, prefix: invoicePrefix(hotel.name),
+        lineItems: items, taxRate: Number(taxRate) || 0,
+      });
+      onGenerated(inv);
+    } catch (err) {
+      console.error("createInvoice failed", err);
+      setError(`${err.message || "Could not create the invoice."}${err.code ? ` (${err.code})` : ""}`);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-center justify-between">
+          <h4 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide" style={{ color: PETROL }}>
+            <FileText className="h-4 w-4" /> Generate invoice
+          </h4>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
+        </div>
+        <p className="mb-4 text-xs text-gray-500">
+          {booking.guestName} · <span className="font-mono">#{booking.reference}</span> · {booking.checkIn} → {booking.checkOut}
+        </p>
+
+        <div className="space-y-2">
+          {lines.map((l, i) => (
+            <div key={i} className="grid grid-cols-12 items-center gap-2">
+              <input className="col-span-6 rounded border px-2 py-1.5 text-sm" placeholder="Description" value={l.description} onChange={(e) => setLine(i, { description: e.target.value })} />
+              <input type="number" min={1} className="col-span-2 rounded border px-2 py-1.5 text-sm" placeholder="Qty" value={l.qty} onChange={(e) => setLine(i, { qty: e.target.value })} />
+              <input type="number" min={0} step="0.01" className="col-span-3 rounded border px-2 py-1.5 text-sm" placeholder="Unit $" value={l.unitPriceUsd} onChange={(e) => setLine(i, { unitPriceUsd: e.target.value })} />
+              <button onClick={() => setLines(lines.filter((_, j) => j !== i))} disabled={lines.length === 1} className="col-span-1 flex justify-end text-gray-400 hover:text-red-600 disabled:opacity-30">
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+        <button onClick={() => setLines([...lines, { description: "", qty: 1, unitPriceUsd: 0 }])} className="mt-2 flex items-center gap-1 text-xs font-semibold" style={{ color: PETROL }}>
+          <Plus className="h-3.5 w-3.5" /> Add line item (minibar, laundry…)
+        </button>
+
+        <div className="mt-4 flex items-center justify-between border-t pt-3 text-sm">
+          <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide" style={{ color: PETROL }}>
+            Tax rate %
+            <input type="number" min={0} max={100} step="0.01" className="w-20 rounded border px-2 py-1 text-sm font-normal normal-case" value={taxRate} onChange={(e) => setTaxRate(e.target.value)} />
+          </label>
+          <div className="text-right text-xs text-gray-500">
+            <p>Subtotal ${subtotal.toFixed(2)} · Tax ${tax.toFixed(2)}</p>
+            <p className="text-base font-bold" style={{ color: OCHRE }}>Total ${(subtotal + tax).toFixed(2)}</p>
+          </div>
+        </div>
+
+        {error && <p className="mt-3 text-sm font-medium text-red-700">{error}</p>}
+        <button onClick={generate} disabled={saving} className="mt-4 w-full rounded-md py-2.5 text-sm font-bold uppercase tracking-wide text-white disabled:opacity-50" style={{ background: OCHRE }}>
+          {saving ? "Generating…" : "Generate invoice"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function InvoicePrintView({ hotel, booking, invoice, onClose }) {
+  const guestEmail = displayEmail(booking.guestEmail);
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-4">
+      <style>{`@media print {
+        body * { visibility: hidden; }
+        .invoice-print-area, .invoice-print-area * { visibility: visible; }
+        .invoice-print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; border-radius: 0; }
+        .no-print { display: none !important; }
+      }`}</style>
+      <div className="invoice-print-area mx-auto max-w-2xl rounded-xl bg-white p-8">
+        <div className="no-print mb-5 flex justify-end gap-2">
+          <button onClick={() => window.print()} className="flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-white" style={{ background: PETROL }}>
+            <Printer className="h-3.5 w-3.5" /> Print
+          </button>
+          <button onClick={onClose} className="flex items-center gap-1 rounded-md border-2 px-3 py-1.5 text-xs font-bold uppercase tracking-wide" style={{ borderColor: CARD_BORDER, color: INK }}>
+            <X className="h-3.5 w-3.5" /> Close
+          </button>
+        </div>
+
+        <div className="flex items-start justify-between gap-4 border-b-2 pb-5" style={{ borderColor: INK }}>
+          <div>
+            <p className="text-xl font-black uppercase" style={{ color: INK }}>{hotel.name}</p>
+            <p className="text-xs text-gray-500">{hotel.address || hotel.area}</p>
+            <p className="text-xs text-gray-500">{hotel.city}, Eritrea</p>
+          </div>
+          <div className="text-right">
+            <p className="text-lg font-black uppercase tracking-wide" style={{ color: PETROL }}>Invoice</p>
+            <p className="font-mono text-sm font-semibold">{invoice.invoiceNumber}</p>
+            <p className="text-xs text-gray-500">Issued {new Date(invoice.issuedAt).toLocaleDateString()}</p>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">{invoice.status}</p>
+          </div>
+        </div>
+
+        <div className="grid gap-4 py-5 text-sm sm:grid-cols-2">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Billed to</p>
+            <p className="font-semibold">{booking.guestName}</p>
+            {guestEmail && <p className="text-xs text-gray-500">{guestEmail}</p>}
+          </div>
+          <div className="sm:text-right">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Stay</p>
+            <p>{booking.checkIn} → {booking.checkOut}</p>
+            <p className="text-xs text-gray-500">
+              Booking <span className="font-mono">#{booking.reference}</span>
+              {booking.paymentMethod ? ` · ${PAYMENT_LABELS[booking.paymentMethod] || booking.paymentMethod}` : ""}
+            </p>
+          </div>
+        </div>
+
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b text-left text-[10px] font-bold uppercase tracking-widest text-gray-400">
+              <th className="py-2">Description</th>
+              <th className="py-2 text-right">Qty</th>
+              <th className="py-2 text-right">Unit</th>
+              <th className="py-2 text-right">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {invoice.lineItems.map((li, i) => (
+              <tr key={i} className="border-b border-gray-100">
+                <td className="py-2">{li.description}</td>
+                <td className="py-2 text-right">{li.qty}</td>
+                <td className="py-2 text-right">${Number(li.unit_price_usd).toFixed(2)}</td>
+                <td className="py-2 text-right font-semibold">${Number(li.total_usd).toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <div className="mt-4 ml-auto w-full max-w-[220px] space-y-1 text-sm">
+          <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>${invoice.subtotalUsd.toFixed(2)}</span></div>
+          <div className="flex justify-between text-gray-600"><span>Tax ({invoice.taxRate}%)</span><span>${invoice.taxUsd.toFixed(2)}</span></div>
+          <div className="flex justify-between border-t-2 pt-1 text-base font-black" style={{ borderColor: INK, color: INK }}>
+            <span>Total USD</span><span>${invoice.totalUsd.toFixed(2)}</span>
+          </div>
+        </div>
+
+        <p className="mt-8 text-center text-[10px] uppercase tracking-widest text-gray-400">
+          Generated by eritreantourism.com · front-desk services for {hotel.name}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function HotelPortal({ hotels, bookings, onUpdateRoom, onAddRoom, onRemoveRoom, onCreateFrontDeskBooking, onCheckIn, onCheckOut, onBack }) {
   const [loggedInId, setLoggedInId] = useState(null);
   const [newRoomName, setNewRoomName] = useState("");
   const [newRoomUnits, setNewRoomUnits] = useState(5);
   const [newRoomPrice, setNewRoomPrice] = useState(100);
+  const [invoiceBooking, setInvoiceBooking] = useState(null);
+  const [busyBookingId, setBusyBookingId] = useState(null);
+  const [lifecycleError, setLifecycleError] = useState("");
 
   if (!loggedInId) {
     return (
@@ -823,7 +1235,23 @@ function HotelPortal({ hotels, bookings, onUpdateRoom, onAddRoom, onRemoveRoom, 
   }
 
   const hotel = hotels.find((h) => h.id === loggedInId);
-  const hotelBookings = bookings.filter((b) => b.hotelId === loggedInId).sort((a, b) => new Date(a.checkIn) - new Date(b.checkIn));
+  const roomIds = new Set(hotel.rooms.map((r) => r.id));
+  const hotelBookings = bookings.filter((b) => roomIds.has(b.roomId)).sort((a, b) => new Date(a.checkIn) - new Date(b.checkIn));
+
+  async function runLifecycle(bookingId, fn) {
+    setBusyBookingId(bookingId);
+    setLifecycleError("");
+    try {
+      await fn(bookingId);
+    } catch (err) {
+      console.error("booking lifecycle update failed", err);
+      setLifecycleError(`${err.message || "Update failed."}${err.code ? ` (${err.code})` : ""}`);
+    } finally {
+      setBusyBookingId(null);
+    }
+  }
+  const handleCheckIn = (id) => runLifecycle(id, onCheckIn);
+  const handleCheckOut = (id) => runLifecycle(id, onCheckOut);
 
   return (
     <div className="space-y-5">
@@ -834,6 +1262,12 @@ function HotelPortal({ hotels, bookings, onUpdateRoom, onAddRoom, onRemoveRoom, 
         </div>
         <button onClick={() => setLoggedInId(null)} className="text-xs font-semibold underline" style={{ color: PETROL }}>Switch hotel</button>
       </div>
+
+      {lifecycleError && <p className="text-sm font-medium text-red-700">{lifecycleError}</p>}
+
+      <FrontDeskToday hotel={hotel} bookings={hotelBookings} busyId={busyBookingId} onCheckIn={handleCheckIn} onCheckOut={handleCheckOut} />
+
+      <NewBookingForm hotel={hotel} onCreate={onCreateFrontDeskBooking} />
 
       <div className="rounded-xl border-2 bg-white p-4" style={{ borderColor: CARD_BORDER }}>
         <h4 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide" style={{ color: PETROL }}><Hotel className="h-4 w-4" /> Room inventory</h4>
@@ -869,24 +1303,39 @@ function HotelPortal({ hotels, bookings, onUpdateRoom, onAddRoom, onRemoveRoom, 
       <div className="rounded-xl border-2 bg-white p-4" style={{ borderColor: CARD_BORDER }}>
         <h4 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide" style={{ color: PETROL }}><CalendarDays className="h-4 w-4" /> Bookings ({hotelBookings.length})</h4>
         {hotelBookings.length === 0 ? (
-          <p className="text-sm text-gray-400">No bookings yet — they'll appear here the moment a guest pays.</p>
+          <p className="text-sm text-gray-400">No bookings yet — they'll appear here the moment a guest pays or the front desk records one.</p>
         ) : (
           <div className="space-y-2">
             {hotelBookings.map((b) => {
               const r = hotel.rooms.find((x) => x.id === b.roomId);
               return (
-                <div key={b.id} className="flex items-center justify-between rounded-md bg-gray-50 px-3 py-2 text-sm">
-                  <div>
-                    <p className="font-semibold">{b.guestName} <span className="font-mono text-xs text-gray-400">#{b.reference}</span></p>
-                    <p className="text-xs text-gray-500">{r?.name} · {b.checkIn} → {b.checkOut}</p>
+                <div key={b.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-gray-50 px-3 py-2 text-sm">
+                  <div className="min-w-0">
+                    <p className="flex flex-wrap items-center gap-1.5 font-semibold">
+                      {b.guestName} <span className="font-mono text-xs text-gray-400">#{b.reference}</span>
+                      <SourceBadge source={b.source} /> <StayStateChip booking={b} />
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {r?.name} · {b.checkIn} → {b.checkOut}
+                      {b.paymentMethod ? ` · ${PAYMENT_LABELS[b.paymentMethod] || b.paymentMethod}` : ""}
+                    </p>
+                    {b.notes && <p className="text-xs italic text-gray-400">{b.notes}</p>}
                   </div>
-                  <p className="font-bold" style={{ color: OCHRE }}>${b.totalPaid}</p>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <p className="font-bold" style={{ color: OCHRE }}>${b.totalPaid}</p>
+                    <LifecycleButtons booking={b} busyId={busyBookingId} onCheckIn={handleCheckIn} onCheckOut={handleCheckOut} />
+                    <button onClick={() => setInvoiceBooking(b)} className="flex items-center gap-1 rounded-md border-2 px-2 py-1 text-[11px] font-bold uppercase" style={{ borderColor: PETROL, color: PETROL }}>
+                      <FileText className="h-3 w-3" /> Invoice
+                    </button>
+                  </div>
                 </div>
               );
             })}
           </div>
         )}
       </div>
+
+      {invoiceBooking && <InvoiceModal hotel={hotel} booking={invoiceBooking} onClose={() => setInvoiceBooking(null)} />}
     </div>
   );
 }
@@ -1334,6 +1783,28 @@ export default function App() {
     },
     [reload]
   );
+  const addFrontDeskBooking = useCallback(
+    async (booking) => {
+      const saved = await createFrontDeskBooking(booking);
+      await reload();
+      return saved;
+    },
+    [reload]
+  );
+  const checkInGuest = useCallback(
+    async (bookingId) => {
+      await checkInBooking(bookingId);
+      await reload();
+    },
+    [reload]
+  );
+  const checkOutGuest = useCallback(
+    async (bookingId) => {
+      await checkOutBooking(bookingId);
+      await reload();
+    },
+    [reload]
+  );
 
   if (loadError) {
     return (
@@ -1352,6 +1823,7 @@ export default function App() {
       <PartnerArea
         hotels={state.hotels} bookings={state.bookings}
         onUpdateRoom={updateRoom} onAddRoom={addRoom} onRemoveRoom={removeRoom} onAddHotel={addHotel}
+        onCreateFrontDeskBooking={addFrontDeskBooking} onCheckIn={checkInGuest} onCheckOut={checkOutGuest}
         onExit={() => setView("home")}
       />
     );
