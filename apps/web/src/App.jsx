@@ -1398,6 +1398,100 @@ const RAIL_PLACES = [
   { id: "qohaito", name: "Qohaito", sub: "Pre-Aksumite ruins", meta: "Highland plateau site", seed: "er-qohaito" },
 ];
 
+/* Featured stories for the hero news panel.
+   TEMPORARY: static list until the content system reads from the
+   content_pages table (migration 005) — at that point this becomes
+   a fetch of the latest published rows and editors control it with
+   zero deployments. */
+const FEATURED_STORIES = [
+  {
+    id: "asmara-unesco",
+    tag: "City Guide",
+    title: "Asmara: a capital built like a manifesto",
+    teaser: "Inside the world's best-preserved modernist city \u2014 UNESCO-listed since 2017.",
+    seed: "er-story-asmara",
+    live: true,
+  },
+  {
+    id: "massawa-guide",
+    tag: "Coming Soon",
+    title: "Massawa: pearl of the Red Sea",
+    teaser: "Coral-stone architecture and Ottoman history on Eritrea's coast.",
+    seed: "er-story-massawa",
+    live: false,
+    label: "Massawa guide",
+  },
+  {
+    id: "dahlak-guide",
+    tag: "Coming Soon",
+    title: "The Dahlak Archipelago",
+    teaser: "126 islands of pristine reefs \u2014 some of the Red Sea's least-touched diving.",
+    seed: "er-story-dahlak",
+    live: false,
+    label: "Dahlak guide",
+  },
+];
+
+function NewsPanel({ onExploreAsmara, onComingSoon }) {
+  const [idx, setIdx] = useState(0);
+  const story = FEATURED_STORIES[idx];
+
+  useEffect(() => {
+    const t = setInterval(() => setIdx((i) => (i + 1) % FEATURED_STORIES.length), 6000);
+    return () => clearInterval(t);
+  }, []);
+
+  function open(s) {
+    if (s.live) onExploreAsmara();
+    else onComingSoon(s.label || s.title);
+  }
+
+  return (
+    <div className="w-full">
+      <p className="font-utility mb-2 text-[10px] uppercase tracking-[0.25em]" style={{ color: OCHRE }}>
+        From the guide
+      </p>
+      <button
+        onClick={() => open(story)}
+        className="poster-card group relative block w-full overflow-hidden border-2 text-left"
+        style={{ borderColor: OCHRE, boxShadow: "6px 6px 0 rgba(18,58,43,0.85)" }}
+      >
+        <div className="relative h-44 sm:h-52">
+          <Poster seed={story.seed} w={900} h={480} className="absolute inset-0" tone={PETROL_DEEP} />
+          <span
+            className="font-utility absolute left-3 top-3 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest"
+            style={{ background: story.live ? GREEN : INK, color: PLASTER }}
+          >
+            {story.tag}
+          </span>
+        </div>
+        <div className="p-4" style={{ background: PLASTER }}>
+          <h3 className="font-display text-lg uppercase leading-tight sm:text-xl" style={{ color: INK, fontWeight: 800 }}>
+            {story.title}
+          </h3>
+          <p className="font-body mt-1 text-xs sm:text-sm" style={{ color: PETROL }}>{story.teaser}</p>
+          <p className="font-body mt-2 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider" style={{ color: OCHRE_DEEP }}>
+            {story.live ? "Read the guide" : "Preview"} <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+          </p>
+        </div>
+      </button>
+
+      {/* story switcher */}
+      <div className="mt-3 flex items-center gap-2">
+        {FEATURED_STORIES.map((s, i) => (
+          <button
+            key={s.id}
+            onClick={() => setIdx(i)}
+            aria-label={"Show story: " + s.title}
+            className="h-[4px] flex-1 transition-opacity"
+            style={{ background: i === idx ? OCHRE : "rgba(246,240,224,0.35)" }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function StayCard({ hotel, onClick }) {
   const fromPrice = Math.min(...hotel.rooms.map((r) => r.priceUsd));
   return (
@@ -1439,42 +1533,51 @@ function StayCard({ hotel, onClick }) {
 function Home({ hotels, searchBarProps, onSearch, onOpenHotel, onExploreAsmara, onComingSoon, onNavigateItem }) {
   return (
     <div>
-      {/* ---- poster hero ---- */}
+      {/* ---- poster hero: headline left, rotating stories right ---- */}
       <section className="relative" style={{ background: GREEN_DEEP }}>
         <Poster seed="er-hero-highlands" w={1800} h={1000} className="absolute inset-0" tone={GREEN_DEEP} />
         <div className="pointer-events-none absolute inset-x-6 top-6 hidden h-[2px] sm:block" style={{ background: OCHRE, opacity: 0.7 }} />
-        <div className="relative z-10 mx-auto max-w-6xl px-4 pb-36 pt-14 sm:px-6 sm:pb-40 sm:pt-20">
-          <p className="font-utility text-[11px] uppercase tracking-[0.28em]" style={{ color: "rgba(246,240,224,0.75)" }}>
-            Est. on the Red Sea · Horn of Africa
-          </p>
-          <h1
-            className="font-display mt-3 uppercase leading-[0.86]"
-            style={{ color: PLASTER, fontWeight: 800, fontSize: "clamp(3.4rem, 12vw, 9rem)", letterSpacing: "0.01em" }}
-          >
-            Visit<br />Eritrea
-          </h1>
-          <div className="mt-5 flex items-center gap-4">
-            <SpeedLines />
-            <p className="font-body max-w-md text-sm sm:text-base" style={{ color: "rgba(246,240,224,0.85)" }}>
-              Modernist Asmara, coral-stone Massawa, and 126 islands of the Dahlak —
-              one guide for everything, bookable in USD.
+        <div className="relative z-10 mx-auto grid max-w-6xl grid-cols-1 items-center gap-8 px-4 pb-14 pt-14 sm:px-6 sm:pt-20 lg:grid-cols-2 lg:gap-10 lg:pb-20">
+          <div>
+            <p className="font-utility text-[11px] uppercase tracking-[0.28em]" style={{ color: "rgba(246,240,224,0.75)" }}>
+              Est. on the Red Sea · Horn of Africa
             </p>
-          </div>
-        </div>
-        <div className="relative z-20 mx-auto -mb-1 max-w-4xl px-4 sm:px-6" id="book-search">
-          <div className="translate-y-1/2">
-            <div className="border-2 p-4" style={{ background: PLASTER, borderColor: INK, boxShadow: "8px 8px 0 rgba(18,58,43,0.9)" }}>
-              <SearchBar {...searchBarProps} onSearch={onSearch} />
-              <p className="font-utility mt-2 text-[10px] uppercase tracking-[0.18em]" style={{ color: PETROL, opacity: 0.7 }}>
-                Live availability · pay in USD · settled locally
+            <h1
+              className="font-display mt-3 uppercase leading-[0.86]"
+              style={{ color: PLASTER, fontWeight: 800, fontSize: "clamp(3.2rem, 9vw, 7.5rem)", letterSpacing: "0.01em" }}
+            >
+              Visit<br />Eritrea
+            </h1>
+            <div className="mt-5 flex items-center gap-4">
+              <SpeedLines />
+              <p className="font-body max-w-md text-sm sm:text-base" style={{ color: "rgba(246,240,224,0.85)" }}>
+                Modernist Asmara, coral-stone Massawa, and 126 islands of the Dahlak —
+                one guide for everything, bookable in USD.
               </p>
             </div>
+          </div>
+          <NewsPanel onExploreAsmara={onExploreAsmara} onComingSoon={onComingSoon} />
+        </div>
+      </section>
+
+      {/* ---- book a stay: the search gets its own framed section ---- */}
+      <section id="book-search" className="py-10 sm:py-12" style={{ background: PLASTER_DIM, borderBottom: `2px solid ${INK}` }}>
+        <div className="mx-auto max-w-4xl px-4 sm:px-6">
+          <p className="font-utility text-[11px] uppercase tracking-[0.28em]" style={{ color: GREEN }}>Book a stay · live now</p>
+          <h2 className="font-display mb-4 mt-1 uppercase" style={{ color: INK, fontWeight: 800, fontSize: "clamp(1.6rem,4vw,2.4rem)", lineHeight: 0.95 }}>
+            Find a hotel, pay in USD
+          </h2>
+          <div className="border-2 p-4" style={{ background: PLASTER, borderColor: INK, boxShadow: "8px 8px 0 rgba(18,58,43,0.9)" }}>
+            <SearchBar {...searchBarProps} onSearch={onSearch} />
+            <p className="font-utility mt-2 text-[10px] uppercase tracking-[0.18em]" style={{ color: PETROL, opacity: 0.7 }}>
+              Live availability · pay in USD · settled locally
+            </p>
           </div>
         </div>
       </section>
 
       {/* ---- explore poster rail ---- */}
-      <section className="pb-4 pt-40 sm:pt-44" style={{ background: PLASTER }}>
+      <section className="pb-4 pt-14 sm:pt-16" style={{ background: PLASTER }}>
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="flex items-end justify-between">
             <div>
