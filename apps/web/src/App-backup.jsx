@@ -2,12 +2,20 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Search, MapPin, Star, Wifi, Waves, ParkingCircle, Coffee, UtensilsCrossed, Wind,
   ChevronLeft, ChevronRight, CheckCircle2, SlidersHorizontal, LogIn, Hotel, ShieldCheck,
-  Plus, Trash2, Building2, CalendarDays, X, ArrowLeft, Car, Compass, Menu, Landmark, Clock
+  Plus, Trash2, Building2, CalendarDays, X, ArrowLeft, Car, Compass, Menu, Landmark, Clock,
+  FileText, Printer, LogOut, UserPlus, Sunrise, Sunset
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import {
   fetchHotels, fetchBookingsForListings, createBooking,
   updateListing, addListing, removeListing, addHotelPartner,
+  createFrontDeskBooking, checkInBooking, checkOutBooking,
+  fetchInvoiceForBooking, createInvoice,
 } from "./lib/bookingApi";
+import {
+  INK, GREEN, GREEN_DEEP, PLASTER, PLASTER_DIM, PETROL, PETROL_DEEP,
+  OCHRE, OCHRE_DEEP, ROSE, SAGE, CARD_BORDER, FONT_CSS, imgUrl,
+} from "./lib/theme";
 
 /* ------------------------------------------------------------------
    DATA LAYER — backed by Supabase (see src/lib/bookingApi.js and
@@ -22,8 +30,6 @@ const AMENITY_META = {
   restaurant: { label: "Restaurant", Icon: UtensilsCrossed },
   ac: { label: "Air conditioning", Icon: Wind },
 };
-
-const imgUrl = (seed, w = 800, h = 500) => `https://picsum.photos/seed/${seed}/${w}/${h}`;
 
 /* ------------------------------------------------------------------
    AVAILABILITY ENGINE
@@ -61,34 +67,36 @@ function hotelFromPrice(hotel, bookings, checkIn, checkOut) {
   return Math.min(...available.map((x) => x.room.priceUsd));
 }
 
-/* ------------------------------------------------------------------
-   DESIGN TOKENS
-------------------------------------------------------------------- */
-
-const INK = "#1C2622";
-const PLASTER = "#EFE8D8";
-const PETROL = "#1B4750";
-const OCHRE = "#C4842E";
-const SAGE = "#93A98C";
-const CARD_BORDER = "#ddd6c4";
-
+/* Tricolor speed lines: futurist motion motif carrying the flag's
+   green / red / blue in its top-to-bottom order. */
 function SpeedLines({ className = "" }) {
   return (
-    <div className={`flex flex-col gap-[3px] ${className}`} aria-hidden="true">
-      <div className="h-[2px] w-10" style={{ background: OCHRE }} />
-      <div className="h-[2px] w-7" style={{ background: OCHRE, opacity: 0.6 }} />
-      <div className="h-[2px] w-4" style={{ background: OCHRE, opacity: 0.35 }} />
+    <div className={`flex flex-col gap-[4px] ${className}`} aria-hidden="true">
+      <div className="h-[3px] w-16" style={{ background: GREEN }} />
+      <div className="h-[3px] w-11" style={{ background: ROSE }} />
+      <div className="h-[3px] w-6" style={{ background: PETROL }} />
     </div>
   );
 }
 
-function Hero({ imageSeed = "asmara-hero-1", height = "h-72 sm:h-96", children }) {
+/* Duotone poster image: grayscale photo + tonal multiply + paper lift */
+function Poster({ seed, w, h, className = "", tone = PETROL_DEEP }) {
   return (
-    <div className={`relative ${height} overflow-hidden`}>
-      <img src={imgUrl(imageSeed, 1600, 700)} alt="" className="absolute inset-0 h-full w-full object-cover" />
+    <div className={`relative overflow-hidden ${className}`}>
+      <img src={imgUrl(seed, w, h)} alt="" className="duotone poster-img absolute inset-0 h-full w-full object-cover" />
+      <div className="absolute inset-0 mix-blend-multiply" style={{ background: tone }} />
+      <div className="absolute inset-0 mix-blend-soft-light" style={{ background: PLASTER, opacity: 0.35 }} />
+    </div>
+  );
+}
+
+function Hero({ imageSeed = "asmara-hero-1", height = "h-72 sm:h-96", children, tone = GREEN_DEEP }) {
+  return (
+    <div className={`relative ${height} overflow-hidden`} style={{ background: tone }}>
+      <Poster seed={imageSeed} w={1600} h={700} className="absolute inset-0" tone={tone} />
       <div
         className="absolute inset-0"
-        style={{ background: `linear-gradient(180deg, rgba(28,38,34,0.15) 0%, rgba(27,71,80,0.55) 55%, ${PETROL} 100%)` }}
+        style={{ background: "linear-gradient(180deg, rgba(18,58,43,0.05) 0%, rgba(18,58,43,0.45) 60%, rgba(18,58,43,0.8) 100%)" }}
       />
       <div className="relative z-10 flex h-full flex-col justify-end px-5 pb-6 sm:px-8">{children}</div>
     </div>
@@ -127,7 +135,7 @@ const SITE_MAP = [
   {
     id: "eat", label: "Eat",
     items: [
-      { id: "eat-restaurants", label: "Restaurants", status: "soon" },
+      { id: "eat-restaurants", label: "Restaurants", status: "live", route: "/eat" },
       { id: "eat-coffee", label: "Coffee Houses", status: "soon" },
       { id: "eat-traditional", label: "Traditional Food", status: "soon" },
     ],
@@ -233,7 +241,7 @@ function SideDrawer({ open, onClose, onNavigateItem }) {
   );
 }
 
-function NavHeader({ onOpenMenu, onNavigate, onNavigateItem }) {
+function NavHeader({ onOpenMenu, onNavigate, onNavigateItem, onBookStay }) {
   const [openId, setOpenId] = useState(null);
   const closeTimer = useRef(null);
 
@@ -246,42 +254,48 @@ function NavHeader({ onOpenMenu, onNavigate, onNavigateItem }) {
   }
 
   return (
-    <header className="sticky top-0 z-30 border-b bg-white" style={{ borderColor: CARD_BORDER }}>
-      <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-8">
+    <header className="sticky top-0 z-30" style={{ background: PLASTER, borderBottom: `1px solid ${CARD_BORDER}` }}>
+      {/* utility strip */}
+      <div className="font-utility hidden items-center justify-between px-6 py-1.5 text-[10px] uppercase tracking-[0.2em] sm:flex" style={{ background: INK, color: PLASTER_DIM }}>
+        <span>Asmara · 15.34°N 38.93°E · alt. 2,325 m</span>
+        <span>Nakfa (ERN) · hotels priced in USD</span>
+      </div>
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
         <div className="flex items-center gap-3">
-          <button onClick={onOpenMenu} aria-label="Open menu" className="rounded-md p-1 hover:bg-gray-50 sm:hidden">
+          <button onClick={onOpenMenu} aria-label="Open menu" className="rounded-md p-1 hover:bg-black/5 lg:hidden">
             <Menu className="h-5 w-5" style={{ color: PETROL }} />
           </button>
-          <button onClick={() => onNavigate("home")} className="text-sm font-black uppercase tracking-tight sm:text-base" style={{ color: PETROL }}>
-            eritreantourism<span style={{ color: OCHRE }}>.com</span>
+          <button onClick={() => onNavigate("home")} className="flex items-center gap-2.5">
+            <SpeedLines className="hidden scale-75 sm:flex" />
+            <span className="font-display text-xl uppercase tracking-wide" style={{ color: INK, fontWeight: 800 }}>
+              Eritrean<span style={{ color: OCHRE_DEEP }}>Tourism</span>
+            </span>
           </button>
         </div>
-        <nav className="hidden items-center gap-0.5 sm:flex">
+        <nav className="hidden items-center lg:flex">
           {SITE_MAP.map((section) => (
             <div key={section.id} className="relative" onMouseEnter={() => openNow(section.id)} onMouseLeave={closeSoon}>
               <button
                 onClick={() => setOpenId(openId === section.id ? null : section.id)}
-                className="flex items-center gap-0.5 rounded-md px-2.5 py-1.5 text-xs font-bold uppercase tracking-wide lg:text-sm"
-                style={{ color: PETROL }}
+                className="font-body flex items-center gap-1 px-2.5 py-2 text-[12px] font-semibold uppercase tracking-wider xl:text-[13px]"
+                style={{ color: openId === section.id ? OCHRE_DEEP : INK }}
               >
                 {section.label}
                 <ChevronRight className={`h-3 w-3 transition-transform ${openId === section.id ? "-rotate-90" : "rotate-90"}`} />
               </button>
               {openId === section.id && (
-                <div
-                  className="absolute left-0 top-full z-40 mt-1 w-56 rounded-lg border-2 bg-white py-2 shadow-lg"
-                  style={{ borderColor: CARD_BORDER }}
-                >
-                  {section.items.map((item) => (
+                <div className="absolute left-0 top-full z-40 w-56 border shadow-lg" style={{ background: PLASTER, borderColor: CARD_BORDER }}>
+                  <div className="h-[3px]" style={{ background: OCHRE }} />
+                  {section.items.map((item, i) => (
                     <button
                       key={item.id}
                       onClick={() => { setOpenId(null); onNavigateItem(item); }}
-                      className="flex w-full items-center justify-between px-4 py-2 text-left text-sm hover:bg-gray-50"
-                      style={{ color: item.status === "live" ? PETROL : "#a39c8c" }}
+                      className="font-body flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition-all hover:pl-5"
+                      style={{ color: item.status === "live" ? INK : "#a39c8c", borderTop: i ? `1px solid ${CARD_BORDER}` : "none" }}
                     >
                       <span className={item.status === "live" ? "font-semibold" : ""}>{item.label}</span>
                       {item.status === "soon" && (
-                        <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold text-gray-400">Soon</span>
+                        <span className="font-utility text-[9px] uppercase tracking-widest" style={{ color: ROSE }}>soon</span>
                       )}
                     </button>
                   ))}
@@ -289,6 +303,9 @@ function NavHeader({ onOpenMenu, onNavigate, onNavigateItem }) {
               )}
             </div>
           ))}
+          <button onClick={onBookStay} className="font-body ml-3 px-4 py-2 text-[12px] font-bold uppercase tracking-wider text-white" style={{ background: ROSE }}>
+            Book a stay
+          </button>
         </nav>
       </div>
     </header>
@@ -348,8 +365,8 @@ function SearchBar({ query, setQuery, checkIn, setCheckIn, checkOut, setCheckOut
       <div className="flex items-end">
         <button
           onClick={onSearch}
-          className="flex w-full items-center justify-center gap-2 rounded-md py-2.5 text-sm font-bold uppercase tracking-wide text-white"
-          style={{ background: OCHRE }}
+          className="font-body flex w-full items-center justify-center gap-2 rounded-md py-2.5 text-sm font-bold uppercase tracking-wide text-white transition-transform active:translate-y-[1px]"
+          style={{ background: ROSE }}
         >
           <Search className="h-4 w-4" /> Search
         </button>
@@ -466,7 +483,7 @@ function ResultsView({ hotels, bookings, checkIn, checkOut, onOpenHotel, searchB
    HOTEL DETAIL + ROOM SELECTION
 ------------------------------------------------------------------- */
 
-function HotelDetail({ hotel, bookings, checkIn, checkOut, onBack, onSelectRoom }) {
+function HotelDetail({ hotel, bookings, checkIn, checkOut, setCheckIn, setCheckOut, onBack, onSelectRoom }) {
   const [imgIdx, setImgIdx] = useState(0);
   const [tab, setTab] = useState("overview");
   const nights = Math.max(1, dateRange(checkIn, checkOut).length || 1);
@@ -554,6 +571,28 @@ function HotelDetail({ hotel, bookings, checkIn, checkOut, onBack, onSelectRoom 
           <h3 className="mb-3 text-sm font-bold uppercase tracking-wide" style={{ color: PETROL }}>
             Available rooms · {checkIn || "—"} to {checkOut || "—"} ({nights} night{nights > 1 ? "s" : ""})
           </h3>
+
+          {/* Inline date selection — guests often land here from the homepage
+              cards without dates, so let them pick right where they book. */}
+          <div
+            className="mb-4 rounded-xl border-2 bg-white p-4"
+            style={{ borderColor: !checkIn || !checkOut ? OCHRE : CARD_BORDER }}
+          >
+            {(!checkIn || !checkOut) && (
+              <p className="mb-2 text-xs font-bold uppercase tracking-wide" style={{ color: OCHRE_DEEP }}>
+                Select your dates to book
+              </p>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Check-in">
+                <input type="date" value={checkIn} onChange={(e) => setCheckIn(e.target.value)} className={inputCls} style={{ borderColor: PETROL }} />
+              </Field>
+              <Field label="Check-out">
+                <input type="date" value={checkOut} min={checkIn} onChange={(e) => setCheckOut(e.target.value)} className={inputCls} style={{ borderColor: PETROL }} />
+              </Field>
+            </div>
+          </div>
+
           <div className="space-y-3">
             {hotel.rooms.map((r) => {
               const free = checkIn && checkOut ? minAvailability(r, bookings, checkIn, checkOut) : r.totalUnits;
@@ -568,7 +607,7 @@ function HotelDetail({ hotel, bookings, checkIn, checkOut, onBack, onSelectRoom 
                     disabled={free <= 0 || !checkIn || !checkOut}
                     onClick={() => onSelectRoom(r)}
                     className="rounded-md px-4 py-2 text-xs font-bold uppercase tracking-wide text-white disabled:cursor-not-allowed disabled:opacity-30"
-                    style={{ background: OCHRE }}
+                    style={{ background: ROSE }}
                   >
                     Select
                   </button>
@@ -577,7 +616,7 @@ function HotelDetail({ hotel, bookings, checkIn, checkOut, onBack, onSelectRoom 
             })}
           </div>
           {(!checkIn || !checkOut) && (
-            <p className="mt-3 text-xs text-gray-400">Pick check-in and check-out dates above to see live availability.</p>
+            <p className="mt-3 text-xs text-gray-400">Room selection unlocks once you've chosen check-in and check-out dates above.</p>
           )}
         </div>
       )}
@@ -718,7 +757,7 @@ function Confirmation({ hotel, room, booking, onDone }) {
    PARTNER AREA (hotel portal + admin) — reached only via footer link
 ------------------------------------------------------------------- */
 
-function PartnerArea({ hotels, bookings, onUpdateRoom, onAddRoom, onRemoveRoom, onAddHotel, onExit }) {
+function PartnerArea({ hotels, bookings, onUpdateRoom, onAddRoom, onRemoveRoom, onAddHotel, onCreateFrontDeskBooking, onCheckIn, onCheckOut, onExit }) {
   const [section, setSection] = useState("choose");
 
   return (
@@ -753,6 +792,9 @@ function PartnerArea({ hotels, bookings, onUpdateRoom, onAddRoom, onRemoveRoom, 
             onUpdateRoom={onUpdateRoom}
             onAddRoom={onAddRoom}
             onRemoveRoom={onRemoveRoom}
+            onCreateFrontDeskBooking={onCreateFrontDeskBooking}
+            onCheckIn={onCheckIn}
+            onCheckOut={onCheckOut}
             onBack={() => setSection("choose")}
           />
         )}
@@ -762,11 +804,417 @@ function PartnerArea({ hotels, bookings, onUpdateRoom, onAddRoom, onRemoveRoom, 
   );
 }
 
-function HotelPortal({ hotels, bookings, onUpdateRoom, onAddRoom, onRemoveRoom, onBack }) {
+/* ---- Front-desk helpers (walk-in/phone bookings, check-in/out, invoices) ---- */
+
+function todayLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+const SOURCE_META = {
+  platform: { label: "Online", bg: PETROL },
+  walk_in: { label: "Walk-in", bg: OCHRE_DEEP },
+  phone: { label: "Phone", bg: GREEN },
+  email: { label: "Email", bg: INK },
+};
+
+const PAYMENT_LABELS = {
+  online: "Paid online",
+  cash: "Cash",
+  card_local: "Card (local)",
+  bank_transfer: "Bank transfer",
+  other: "Other",
+};
+
+// Guests without an email get a synthesized placeholder (see bookingApi) — never show it.
+function displayEmail(email) {
+  return email && !email.startsWith("no-email+") ? email : null;
+}
+
+function SourceBadge({ source }) {
+  const meta = SOURCE_META[source] || SOURCE_META.platform;
+  return (
+    <span className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white" style={{ background: meta.bg }}>
+      {meta.label}
+    </span>
+  );
+}
+
+function StayStateChip({ booking }) {
+  if (booking.checkedOutAt)
+    return <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gray-500">Checked out</span>;
+  if (booking.checkedInAt)
+    return <span className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide" style={{ background: SAGE, color: INK }}>In-house</span>;
+  return null;
+}
+
+function LifecycleButtons({ booking, busyId, onCheckIn, onCheckOut }) {
+  const busy = busyId === booking.id;
+  if (booking.checkedOutAt) return null;
+  if (booking.checkedInAt) {
+    return (
+      <button disabled={busy} onClick={() => onCheckOut(booking.id)} className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-bold uppercase text-white disabled:opacity-50" style={{ background: PETROL }}>
+        <LogOut className="h-3 w-3" /> Check out
+      </button>
+    );
+  }
+  return (
+    <button disabled={busy} onClick={() => onCheckIn(booking.id)} className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-bold uppercase text-white disabled:opacity-50" style={{ background: GREEN }}>
+      <LogIn className="h-3 w-3" /> Check in
+    </button>
+  );
+}
+
+function FrontDeskToday({ hotel, bookings, busyId, onCheckIn, onCheckOut }) {
+  const today = todayLocal();
+  const roomName = (id) => hotel.rooms.find((r) => r.id === id)?.name || "Room";
+  const arrivals = bookings.filter((b) => b.checkIn === today && !b.checkedInAt && !b.checkedOutAt);
+  const departures = bookings.filter((b) => b.checkOut === today && !b.checkedOutAt);
+
+  const row = (b) => (
+    <div key={b.id} className="flex items-center justify-between gap-2 rounded-md bg-gray-50 px-3 py-2 text-sm">
+      <div className="min-w-0">
+        <p className="flex flex-wrap items-center gap-1.5 font-semibold">{b.guestName} <SourceBadge source={b.source} /></p>
+        <p className="text-xs text-gray-500">{roomName(b.roomId)} · <span className="font-mono">#{b.reference}</span></p>
+      </div>
+      <LifecycleButtons booking={b} busyId={busyId} onCheckIn={onCheckIn} onCheckOut={onCheckOut} />
+    </div>
+  );
+
+  return (
+    <div className="rounded-xl border-2 bg-white p-4" style={{ borderColor: CARD_BORDER }}>
+      <h4 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide" style={{ color: PETROL }}>
+        <Clock className="h-4 w-4" /> Front desk today · {today}
+      </h4>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide" style={{ color: GREEN }}>
+            <Sunrise className="h-3.5 w-3.5" /> Arrivals ({arrivals.length})
+          </p>
+          {arrivals.length === 0 ? <p className="text-xs text-gray-400">No arrivals due today.</p> : <div className="space-y-2">{arrivals.map(row)}</div>}
+        </div>
+        <div>
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide" style={{ color: OCHRE_DEEP }}>
+            <Sunset className="h-3.5 w-3.5" /> Departures ({departures.length})
+          </p>
+          {departures.length === 0 ? <p className="text-xs text-gray-400">No departures due today.</p> : <div className="space-y-2">{departures.map(row)}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NewBookingForm({ hotel, onCreate }) {
+  const [roomId, setRoomId] = useState(hotel.rooms[0]?.id || "");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [checkIn, setCheckIn] = useState(todayLocal());
+  const [checkOut, setCheckOut] = useState("");
+  const [source, setSource] = useState("walk_in");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [notes, setNotes] = useState("");
+  const [totalOverride, setTotalOverride] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [savedRef, setSavedRef] = useState("");
+
+  const room = hotel.rooms.find((r) => r.id === roomId);
+  const nights = dateRange(checkIn, checkOut).length;
+  const suggested = room && nights > 0 ? room.priceUsd * nights : 0;
+  const total = totalOverride !== "" ? Number(totalOverride) : suggested;
+
+  async function submit(e) {
+    e.preventDefault();
+    setError(""); setSavedRef("");
+    if (!room || !name.trim()) { setError("Guest name and room are required."); return; }
+    if (nights <= 0) { setError("Check-out must be after check-in."); return; }
+    setSaving(true);
+    try {
+      const saved = await onCreate({
+        roomId, guestName: name.trim(), guestEmail: email, checkIn, checkOut,
+        totalAmount: total, source, paymentMethod, notes,
+      });
+      setSavedRef(saved.reference);
+      setName(""); setEmail(""); setNotes(""); setTotalOverride(""); setCheckOut("");
+    } catch (err) {
+      console.error("front-desk booking failed", err);
+      setError(`${err.message || "Could not save the booking."}${err.code ? ` (${err.code})` : ""}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const selectCls = "w-full rounded-md border-2 bg-white px-3 py-2 text-sm outline-none";
+
+  return (
+    <form onSubmit={submit} className="rounded-xl border-2 bg-white p-4" style={{ borderColor: CARD_BORDER }}>
+      <h4 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide" style={{ color: PETROL }}>
+        <UserPlus className="h-4 w-4" /> New booking (walk-in / phone)
+      </h4>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Guest name">
+          <input className={inputCls} style={{ borderColor: PETROL }} value={name} onChange={(e) => setName(e.target.value)} placeholder="Guest full name" />
+        </Field>
+        <Field label="Email (optional)">
+          <input type="email" className={inputCls} style={{ borderColor: PETROL }} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="guest@email.com" />
+        </Field>
+        <Field label="Room">
+          <select className={selectCls} style={{ borderColor: PETROL }} value={roomId} onChange={(e) => setRoomId(e.target.value)}>
+            {hotel.rooms.map((r) => <option key={r.id} value={r.id}>{r.name} — ${r.priceUsd}/night</option>)}
+          </select>
+        </Field>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Check-in">
+            <input type="date" className={inputCls} style={{ borderColor: PETROL }} value={checkIn} onChange={(e) => setCheckIn(e.target.value)} />
+          </Field>
+          <Field label="Check-out">
+            <input type="date" min={checkIn} className={inputCls} style={{ borderColor: PETROL }} value={checkOut} onChange={(e) => setCheckOut(e.target.value)} />
+          </Field>
+        </div>
+        <Field label="Source">
+          <select className={selectCls} style={{ borderColor: PETROL }} value={source} onChange={(e) => setSource(e.target.value)}>
+            <option value="walk_in">Walk-in</option>
+            <option value="phone">Phone</option>
+            <option value="email">Email</option>
+          </select>
+        </Field>
+        <Field label="Payment method">
+          <select className={selectCls} style={{ borderColor: PETROL }} value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+            <option value="cash">Cash</option>
+            <option value="card_local">Card (local)</option>
+            <option value="bank_transfer">Bank transfer</option>
+            <option value="other">Other</option>
+          </select>
+        </Field>
+        <Field label={`Total USD${nights > 0 ? ` (${nights} night${nights > 1 ? "s" : ""} suggested $${suggested})` : ""}`}>
+          <input type="number" min={0} step="0.01" className={inputCls} style={{ borderColor: PETROL }} value={totalOverride} onChange={(e) => setTotalOverride(e.target.value)} placeholder={suggested ? `$${suggested}` : "0"} />
+        </Field>
+        <Field label="Notes (optional)">
+          <input className={inputCls} style={{ borderColor: PETROL }} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Late arrival, airport pickup…" />
+        </Field>
+      </div>
+      {error && <p className="mt-3 text-sm font-medium text-red-700">{error}</p>}
+      {savedRef && <p className="mt-3 text-sm font-semibold" style={{ color: GREEN }}>Booking saved — reference <span className="font-mono">#{savedRef}</span></p>}
+      <button type="submit" disabled={saving} className="mt-4 w-full rounded-md py-2.5 text-sm font-bold uppercase tracking-wide text-white disabled:opacity-50" style={{ background: OCHRE }}>
+        {saving ? "Saving…" : `Record booking${total > 0 ? ` — $${total}` : ""}`}
+      </button>
+    </form>
+  );
+}
+
+/* ---- Invoices ---- */
+
+function invoicePrefix(hotelName) {
+  const initials = hotelName.split(/\s+/).map((w) => w[0]).join("").toUpperCase().replace(/[^A-Z]/g, "");
+  return initials.slice(0, 3) || "INV";
+}
+
+function InvoiceModal({ hotel, booking, onClose }) {
+  const [invoice, setInvoice] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchInvoiceForBooking(booking.id)
+      .then((inv) => { if (!cancelled) { setInvoice(inv); setLoading(false); } })
+      .catch((err) => {
+        console.error("fetchInvoiceForBooking failed", err);
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [booking.id]);
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+        <div className="rounded-xl bg-white px-8 py-6 text-sm text-gray-400">Loading invoice…</div>
+      </div>
+    );
+  }
+  if (invoice) return <InvoicePrintView hotel={hotel} booking={booking} invoice={invoice} onClose={onClose} />;
+  return <InvoiceBuilder hotel={hotel} booking={booking} onGenerated={setInvoice} onClose={onClose} />;
+}
+
+function InvoiceBuilder({ hotel, booking, onGenerated, onClose }) {
+  const room = hotel.rooms.find((r) => r.id === booking.roomId);
+  const nights = dateRange(booking.checkIn, booking.checkOut).length || 1;
+  const nightly = booking.totalPaid ? Math.round((booking.totalPaid / nights) * 100) / 100 : room?.priceUsd || 0;
+  const [lines, setLines] = useState([
+    { description: `${room?.name || "Room"} · ${nights} night${nights > 1 ? "s" : ""}`, qty: nights, unitPriceUsd: nightly },
+  ]);
+  const [taxRate, setTaxRate] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const subtotal = lines.reduce((s, l) => s + (Number(l.qty) || 0) * (Number(l.unitPriceUsd) || 0), 0);
+  const tax = subtotal * ((Number(taxRate) || 0) / 100);
+
+  function setLine(i, patch) { setLines(lines.map((l, j) => (j === i ? { ...l, ...patch } : l))); }
+
+  async function generate() {
+    setError("");
+    const items = lines
+      .filter((l) => l.description.trim())
+      .map((l) => ({ description: l.description.trim(), qty: Number(l.qty) || 1, unitPriceUsd: Number(l.unitPriceUsd) || 0 }));
+    if (!items.length) { setError("Add at least one line item."); return; }
+    setSaving(true);
+    try {
+      const inv = await createInvoice({
+        bookingId: booking.id, partnerId: hotel.id, prefix: invoicePrefix(hotel.name),
+        lineItems: items, taxRate: Number(taxRate) || 0,
+      });
+      onGenerated(inv);
+    } catch (err) {
+      console.error("createInvoice failed", err);
+      setError(`${err.message || "Could not create the invoice."}${err.code ? ` (${err.code})` : ""}`);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-center justify-between">
+          <h4 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide" style={{ color: PETROL }}>
+            <FileText className="h-4 w-4" /> Generate invoice
+          </h4>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
+        </div>
+        <p className="mb-4 text-xs text-gray-500">
+          {booking.guestName} · <span className="font-mono">#{booking.reference}</span> · {booking.checkIn} → {booking.checkOut}
+        </p>
+
+        <div className="space-y-2">
+          {lines.map((l, i) => (
+            <div key={i} className="grid grid-cols-12 items-center gap-2">
+              <input className="col-span-6 rounded border px-2 py-1.5 text-sm" placeholder="Description" value={l.description} onChange={(e) => setLine(i, { description: e.target.value })} />
+              <input type="number" min={1} className="col-span-2 rounded border px-2 py-1.5 text-sm" placeholder="Qty" value={l.qty} onChange={(e) => setLine(i, { qty: e.target.value })} />
+              <input type="number" min={0} step="0.01" className="col-span-3 rounded border px-2 py-1.5 text-sm" placeholder="Unit $" value={l.unitPriceUsd} onChange={(e) => setLine(i, { unitPriceUsd: e.target.value })} />
+              <button onClick={() => setLines(lines.filter((_, j) => j !== i))} disabled={lines.length === 1} className="col-span-1 flex justify-end text-gray-400 hover:text-red-600 disabled:opacity-30">
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+        <button onClick={() => setLines([...lines, { description: "", qty: 1, unitPriceUsd: 0 }])} className="mt-2 flex items-center gap-1 text-xs font-semibold" style={{ color: PETROL }}>
+          <Plus className="h-3.5 w-3.5" /> Add line item (minibar, laundry…)
+        </button>
+
+        <div className="mt-4 flex items-center justify-between border-t pt-3 text-sm">
+          <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide" style={{ color: PETROL }}>
+            Tax rate %
+            <input type="number" min={0} max={100} step="0.01" className="w-20 rounded border px-2 py-1 text-sm font-normal normal-case" value={taxRate} onChange={(e) => setTaxRate(e.target.value)} />
+          </label>
+          <div className="text-right text-xs text-gray-500">
+            <p>Subtotal ${subtotal.toFixed(2)} · Tax ${tax.toFixed(2)}</p>
+            <p className="text-base font-bold" style={{ color: OCHRE }}>Total ${(subtotal + tax).toFixed(2)}</p>
+          </div>
+        </div>
+
+        {error && <p className="mt-3 text-sm font-medium text-red-700">{error}</p>}
+        <button onClick={generate} disabled={saving} className="mt-4 w-full rounded-md py-2.5 text-sm font-bold uppercase tracking-wide text-white disabled:opacity-50" style={{ background: OCHRE }}>
+          {saving ? "Generating…" : "Generate invoice"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function InvoicePrintView({ hotel, booking, invoice, onClose }) {
+  const guestEmail = displayEmail(booking.guestEmail);
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-4">
+      <style>{`@media print {
+        body * { visibility: hidden; }
+        .invoice-print-area, .invoice-print-area * { visibility: visible; }
+        .invoice-print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; border-radius: 0; }
+        .no-print { display: none !important; }
+      }`}</style>
+      <div className="invoice-print-area mx-auto max-w-2xl rounded-xl bg-white p-8">
+        <div className="no-print mb-5 flex justify-end gap-2">
+          <button onClick={() => window.print()} className="flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-white" style={{ background: PETROL }}>
+            <Printer className="h-3.5 w-3.5" /> Print
+          </button>
+          <button onClick={onClose} className="flex items-center gap-1 rounded-md border-2 px-3 py-1.5 text-xs font-bold uppercase tracking-wide" style={{ borderColor: CARD_BORDER, color: INK }}>
+            <X className="h-3.5 w-3.5" /> Close
+          </button>
+        </div>
+
+        <div className="flex items-start justify-between gap-4 border-b-2 pb-5" style={{ borderColor: INK }}>
+          <div>
+            <p className="text-xl font-black uppercase" style={{ color: INK }}>{hotel.name}</p>
+            <p className="text-xs text-gray-500">{hotel.address || hotel.area}</p>
+            <p className="text-xs text-gray-500">{hotel.city}, Eritrea</p>
+          </div>
+          <div className="text-right">
+            <p className="text-lg font-black uppercase tracking-wide" style={{ color: PETROL }}>Invoice</p>
+            <p className="font-mono text-sm font-semibold">{invoice.invoiceNumber}</p>
+            <p className="text-xs text-gray-500">Issued {new Date(invoice.issuedAt).toLocaleDateString()}</p>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">{invoice.status}</p>
+          </div>
+        </div>
+
+        <div className="grid gap-4 py-5 text-sm sm:grid-cols-2">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Billed to</p>
+            <p className="font-semibold">{booking.guestName}</p>
+            {guestEmail && <p className="text-xs text-gray-500">{guestEmail}</p>}
+          </div>
+          <div className="sm:text-right">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Stay</p>
+            <p>{booking.checkIn} → {booking.checkOut}</p>
+            <p className="text-xs text-gray-500">
+              Booking <span className="font-mono">#{booking.reference}</span>
+              {booking.paymentMethod ? ` · ${PAYMENT_LABELS[booking.paymentMethod] || booking.paymentMethod}` : ""}
+            </p>
+          </div>
+        </div>
+
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b text-left text-[10px] font-bold uppercase tracking-widest text-gray-400">
+              <th className="py-2">Description</th>
+              <th className="py-2 text-right">Qty</th>
+              <th className="py-2 text-right">Unit</th>
+              <th className="py-2 text-right">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {invoice.lineItems.map((li, i) => (
+              <tr key={i} className="border-b border-gray-100">
+                <td className="py-2">{li.description}</td>
+                <td className="py-2 text-right">{li.qty}</td>
+                <td className="py-2 text-right">${Number(li.unit_price_usd).toFixed(2)}</td>
+                <td className="py-2 text-right font-semibold">${Number(li.total_usd).toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <div className="mt-4 ml-auto w-full max-w-[220px] space-y-1 text-sm">
+          <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>${invoice.subtotalUsd.toFixed(2)}</span></div>
+          <div className="flex justify-between text-gray-600"><span>Tax ({invoice.taxRate}%)</span><span>${invoice.taxUsd.toFixed(2)}</span></div>
+          <div className="flex justify-between border-t-2 pt-1 text-base font-black" style={{ borderColor: INK, color: INK }}>
+            <span>Total USD</span><span>${invoice.totalUsd.toFixed(2)}</span>
+          </div>
+        </div>
+
+        <p className="mt-8 text-center text-[10px] uppercase tracking-widest text-gray-400">
+          Generated by eritreantourism.com · front-desk services for {hotel.name}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function HotelPortal({ hotels, bookings, onUpdateRoom, onAddRoom, onRemoveRoom, onCreateFrontDeskBooking, onCheckIn, onCheckOut, onBack }) {
   const [loggedInId, setLoggedInId] = useState(null);
   const [newRoomName, setNewRoomName] = useState("");
   const [newRoomUnits, setNewRoomUnits] = useState(5);
   const [newRoomPrice, setNewRoomPrice] = useState(100);
+  const [invoiceBooking, setInvoiceBooking] = useState(null);
+  const [busyBookingId, setBusyBookingId] = useState(null);
+  const [lifecycleError, setLifecycleError] = useState("");
 
   if (!loggedInId) {
     return (
@@ -787,7 +1235,23 @@ function HotelPortal({ hotels, bookings, onUpdateRoom, onAddRoom, onRemoveRoom, 
   }
 
   const hotel = hotels.find((h) => h.id === loggedInId);
-  const hotelBookings = bookings.filter((b) => b.hotelId === loggedInId).sort((a, b) => new Date(a.checkIn) - new Date(b.checkIn));
+  const roomIds = new Set(hotel.rooms.map((r) => r.id));
+  const hotelBookings = bookings.filter((b) => roomIds.has(b.roomId)).sort((a, b) => new Date(a.checkIn) - new Date(b.checkIn));
+
+  async function runLifecycle(bookingId, fn) {
+    setBusyBookingId(bookingId);
+    setLifecycleError("");
+    try {
+      await fn(bookingId);
+    } catch (err) {
+      console.error("booking lifecycle update failed", err);
+      setLifecycleError(`${err.message || "Update failed."}${err.code ? ` (${err.code})` : ""}`);
+    } finally {
+      setBusyBookingId(null);
+    }
+  }
+  const handleCheckIn = (id) => runLifecycle(id, onCheckIn);
+  const handleCheckOut = (id) => runLifecycle(id, onCheckOut);
 
   return (
     <div className="space-y-5">
@@ -798,6 +1262,12 @@ function HotelPortal({ hotels, bookings, onUpdateRoom, onAddRoom, onRemoveRoom, 
         </div>
         <button onClick={() => setLoggedInId(null)} className="text-xs font-semibold underline" style={{ color: PETROL }}>Switch hotel</button>
       </div>
+
+      {lifecycleError && <p className="text-sm font-medium text-red-700">{lifecycleError}</p>}
+
+      <FrontDeskToday hotel={hotel} bookings={hotelBookings} busyId={busyBookingId} onCheckIn={handleCheckIn} onCheckOut={handleCheckOut} />
+
+      <NewBookingForm hotel={hotel} onCreate={onCreateFrontDeskBooking} />
 
       <div className="rounded-xl border-2 bg-white p-4" style={{ borderColor: CARD_BORDER }}>
         <h4 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide" style={{ color: PETROL }}><Hotel className="h-4 w-4" /> Room inventory</h4>
@@ -833,24 +1303,39 @@ function HotelPortal({ hotels, bookings, onUpdateRoom, onAddRoom, onRemoveRoom, 
       <div className="rounded-xl border-2 bg-white p-4" style={{ borderColor: CARD_BORDER }}>
         <h4 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide" style={{ color: PETROL }}><CalendarDays className="h-4 w-4" /> Bookings ({hotelBookings.length})</h4>
         {hotelBookings.length === 0 ? (
-          <p className="text-sm text-gray-400">No bookings yet — they'll appear here the moment a guest pays.</p>
+          <p className="text-sm text-gray-400">No bookings yet — they'll appear here the moment a guest pays or the front desk records one.</p>
         ) : (
           <div className="space-y-2">
             {hotelBookings.map((b) => {
               const r = hotel.rooms.find((x) => x.id === b.roomId);
               return (
-                <div key={b.id} className="flex items-center justify-between rounded-md bg-gray-50 px-3 py-2 text-sm">
-                  <div>
-                    <p className="font-semibold">{b.guestName} <span className="font-mono text-xs text-gray-400">#{b.reference}</span></p>
-                    <p className="text-xs text-gray-500">{r?.name} · {b.checkIn} → {b.checkOut}</p>
+                <div key={b.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-gray-50 px-3 py-2 text-sm">
+                  <div className="min-w-0">
+                    <p className="flex flex-wrap items-center gap-1.5 font-semibold">
+                      {b.guestName} <span className="font-mono text-xs text-gray-400">#{b.reference}</span>
+                      <SourceBadge source={b.source} /> <StayStateChip booking={b} />
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {r?.name} · {b.checkIn} → {b.checkOut}
+                      {b.paymentMethod ? ` · ${PAYMENT_LABELS[b.paymentMethod] || b.paymentMethod}` : ""}
+                    </p>
+                    {b.notes && <p className="text-xs italic text-gray-400">{b.notes}</p>}
                   </div>
-                  <p className="font-bold" style={{ color: OCHRE }}>${b.totalPaid}</p>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <p className="font-bold" style={{ color: OCHRE }}>${b.totalPaid}</p>
+                    <LifecycleButtons booking={b} busyId={busyBookingId} onCheckIn={handleCheckIn} onCheckOut={handleCheckOut} />
+                    <button onClick={() => setInvoiceBooking(b)} className="flex items-center gap-1 rounded-md border-2 px-2 py-1 text-[11px] font-bold uppercase" style={{ borderColor: PETROL, color: PETROL }}>
+                      <FileText className="h-3 w-3" /> Invoice
+                    </button>
+                  </div>
                 </div>
               );
             })}
           </div>
         )}
       </div>
+
+      {invoiceBooking && <InvoiceModal hotel={hotel} booking={invoiceBooking} onClose={() => setInvoiceBooking(null)} />}
     </div>
   );
 }
@@ -903,57 +1388,190 @@ function AdminView({ hotels, onAddHotel, onBack }) {
    as "Soon" tabs — see the generalized schema for how they'll plug in.
 ------------------------------------------------------------------- */
 
-function PromoCard({ hotel, onClick }) {
+/* Explore rail destinations — static content entries; Asmara routes to
+   the live content page, the rest to ComingSoon until their guides exist. */
+const RAIL_PLACES = [
+  { id: "asmara", name: "Asmara", sub: "La Piccola Roma", meta: "2,325 m · UNESCO 2017", seed: "er-asmara", live: true },
+  { id: "massawa", name: "Massawa", sub: "Pearl of the Red Sea", meta: "Ottoman & coral-stone port", seed: "er-massawa" },
+  { id: "keren", name: "Keren", sub: "City of gardens", meta: "Monday camel market", seed: "er-keren" },
+  { id: "dahlak", name: "Dahlak", sub: "126-island archipelago", meta: "Diving · pristine reefs", seed: "er-dahlak" },
+  { id: "qohaito", name: "Qohaito", sub: "Pre-Aksumite ruins", meta: "Highland plateau site", seed: "er-qohaito" },
+];
+
+function StayCard({ hotel, onClick }) {
   const fromPrice = Math.min(...hotel.rooms.map((r) => r.priceUsd));
   return (
     <button
       onClick={onClick}
-      className="flex flex-col overflow-hidden rounded-xl border-2 bg-white text-left shadow-sm transition-shadow hover:shadow-md"
-      style={{ borderColor: CARD_BORDER }}
+      className="poster-card group block w-full overflow-hidden border-2 bg-white text-left"
+      style={{ borderColor: INK, boxShadow: "6px 6px 0 rgba(18,58,43,0.85)" }}
     >
-      <img src={imgUrl(hotel.images[0], 500, 320)} alt={hotel.name} className="h-40 w-full object-cover" />
-      <div className="p-4">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="font-bold" style={{ color: INK }}>{hotel.name}</h3>
-          <span className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-bold text-white" style={{ background: PETROL }}>
-            <Star className="h-3 w-3 fill-white" /> {hotel.rating}
-          </span>
+      <div className="relative h-52 overflow-hidden sm:h-60">
+        <Poster seed={hotel.images[0]} w={800} h={480} className="absolute inset-0" tone={PETROL_DEEP} />
+        <div className="absolute left-3 top-3 flex items-center gap-1 px-2 py-1" style={{ background: INK }}>
+          <Star className="h-3 w-3" style={{ color: OCHRE, fill: OCHRE }} />
+          <span className="font-utility text-[11px] font-bold" style={{ color: PLASTER }}>{hotel.rating}</span>
+          <span className="font-utility text-[10px]" style={{ color: "rgba(246,240,224,0.6)" }}>({hotel.reviews})</span>
         </div>
-        <p className="mt-0.5 flex items-center gap-1 text-xs text-gray-500"><MapPin className="h-3 w-3" /> {hotel.area}</p>
-        <p className="mt-2 text-right text-sm">
-          <span className="text-gray-400">from </span>
-          <span className="text-lg font-black" style={{ color: OCHRE }}>${fromPrice}</span>
-          <span className="text-xs text-gray-400">/night</span>
-        </p>
+      </div>
+      <div className="flex items-end justify-between gap-3 p-4">
+        <div>
+          <h3 className="font-display text-xl uppercase" style={{ color: INK, fontWeight: 800 }}>{hotel.name}</h3>
+          <p className="font-body mt-0.5 flex items-center gap-1 text-xs" style={{ color: PETROL }}>
+            <MapPin className="h-3 w-3" /> {hotel.area}
+          </p>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="font-utility text-[10px] uppercase tracking-widest" style={{ color: PETROL }}>from</p>
+          <p className="font-display text-2xl" style={{ color: OCHRE_DEEP, fontWeight: 800 }}>
+            ${fromPrice}<span className="font-body text-xs font-normal" style={{ color: PETROL }}>/night</span>
+          </p>
+        </div>
+      </div>
+      <div className="font-body flex items-center justify-between px-4 py-2.5 text-xs font-bold uppercase tracking-wider" style={{ background: PLASTER_DIM, color: INK, borderTop: `2px solid ${INK}` }}>
+        Check live availability
+        <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
       </div>
     </button>
   );
 }
 
-function Home({ hotels, searchBarProps, onSearch, onOpenHotel }) {
+function Home({ hotels, searchBarProps, onSearch, onOpenHotel, onExploreAsmara, onComingSoon, onNavigateItem }) {
   return (
     <div>
-      <Hero imageSeed="asmara-hero-1">
-        <SpeedLines className="mb-2" />
-        <h1 className="max-w-lg text-2xl font-black leading-tight text-white sm:text-4xl">
-          Everything you need to visit Eritrea, in one place
-        </h1>
-        <p className="mt-1 mb-5 max-w-md text-xs font-medium uppercase tracking-widest text-white/80 sm:text-sm">
-          Hotels today — tours, rentals &amp; dining coming soon. Pay in USD, book with confidence.
-        </p>
-        <div className="max-w-3xl">
-          <SearchBar {...searchBarProps} onSearch={onSearch} />
+      {/* ---- poster hero ---- */}
+      <section className="relative" style={{ background: GREEN_DEEP }}>
+        <Poster seed="er-hero-highlands" w={1800} h={1000} className="absolute inset-0" tone={GREEN_DEEP} />
+        <div className="pointer-events-none absolute inset-x-6 top-6 hidden h-[2px] sm:block" style={{ background: OCHRE, opacity: 0.7 }} />
+        <div className="relative z-10 mx-auto max-w-6xl px-4 pb-36 pt-14 sm:px-6 sm:pb-40 sm:pt-20">
+          <p className="font-utility text-[11px] uppercase tracking-[0.28em]" style={{ color: "rgba(246,240,224,0.75)" }}>
+            Est. on the Red Sea · Horn of Africa
+          </p>
+          <h1
+            className="font-display mt-3 uppercase leading-[0.86]"
+            style={{ color: PLASTER, fontWeight: 800, fontSize: "clamp(3.4rem, 12vw, 9rem)", letterSpacing: "0.01em" }}
+          >
+            Visit<br />Eritrea
+          </h1>
+          <div className="mt-5 flex items-center gap-4">
+            <SpeedLines />
+            <p className="font-body max-w-md text-sm sm:text-base" style={{ color: "rgba(246,240,224,0.85)" }}>
+              Modernist Asmara, coral-stone Massawa, and 126 islands of the Dahlak —
+              one guide for everything, bookable in USD.
+            </p>
+          </div>
         </div>
-      </Hero>
+        <div className="relative z-20 mx-auto -mb-1 max-w-4xl px-4 sm:px-6" id="book-search">
+          <div className="translate-y-1/2">
+            <div className="border-2 p-4" style={{ background: PLASTER, borderColor: INK, boxShadow: "8px 8px 0 rgba(18,58,43,0.9)" }}>
+              <SearchBar {...searchBarProps} onSearch={onSearch} />
+              <p className="font-utility mt-2 text-[10px] uppercase tracking-[0.18em]" style={{ color: PETROL, opacity: 0.7 }}>
+                Live availability · pay in USD · settled locally
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
 
-      <div className="mx-auto max-w-4xl px-4 pb-16 pt-8 sm:px-8">
-        <h2 className="mb-4 text-xs font-bold uppercase tracking-wide" style={{ color: PETROL }}>Popular hotels in Asmara</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {hotels.map((h) => (
-            <PromoCard key={h.id} hotel={h} onClick={() => onOpenHotel(h.id)} />
-          ))}
+      {/* ---- explore poster rail ---- */}
+      <section className="pb-4 pt-40 sm:pt-44" style={{ background: PLASTER }}>
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="flex items-end justify-between">
+            <div>
+              <p className="font-utility text-[11px] uppercase tracking-[0.28em]" style={{ color: PETROL }}>Explore</p>
+              <h2 className="font-display mt-1 uppercase" style={{ color: INK, fontWeight: 800, fontSize: "clamp(2rem,5vw,3.2rem)", lineHeight: 0.95 }}>
+                Five places to know
+              </h2>
+            </div>
+            <p className="font-utility hidden text-[11px] uppercase tracking-[0.2em] sm:block" style={{ color: PETROL }}>drag / scroll →</p>
+          </div>
         </div>
-      </div>
+        <div className="mt-8 overflow-x-auto pb-6" style={{ scrollbarWidth: "thin" }}>
+          <div className="mx-auto flex w-max gap-5 px-4 sm:px-6" style={{ minWidth: "100%" }}>
+            {RAIL_PLACES.map((p, i) => (
+              <button
+                key={p.id}
+                onClick={() => (p.live ? onExploreAsmara() : onComingSoon(p.name))}
+                className="poster-card group relative block h-[380px] w-[260px] shrink-0 overflow-hidden border-2 text-left sm:h-[420px] sm:w-[300px]"
+                style={{ borderColor: INK, boxShadow: "6px 6px 0 rgba(18,58,43,0.85)" }}
+              >
+                <Poster seed={p.seed} w={600} h={840} className="absolute inset-0" tone={i % 2 ? GREEN_DEEP : PETROL_DEEP} />
+                <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, transparent 40%, rgba(18,58,43,0.88) 100%)" }} />
+                <div className="absolute inset-x-0 top-0 flex items-center justify-between p-3">
+                  <span className="font-utility text-[10px] uppercase tracking-[0.25em]" style={{ color: PLASTER }}>{String(i + 1).padStart(2, "0")}° stop</span>
+                  {p.live ? (
+                    <span className="font-utility px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-white" style={{ background: GREEN }}>guide live</span>
+                  ) : (
+                    <span className="font-utility text-[9px] uppercase tracking-widest" style={{ color: "rgba(246,240,224,0.7)" }}>soon</span>
+                  )}
+                </div>
+                <div className="absolute inset-x-0 bottom-0 p-4">
+                  <p className="font-utility text-[10px] uppercase tracking-[0.22em]" style={{ color: OCHRE }}>{p.sub}</p>
+                  <h3 className="font-display mt-0.5 uppercase" style={{ color: PLASTER, fontWeight: 800, fontSize: "2.1rem", lineHeight: 0.9 }}>{p.name}</h3>
+                  <p className="font-body mt-1.5 text-xs" style={{ color: "rgba(246,240,224,0.75)" }}>{p.meta}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ---- stay: live hotels from Supabase ---- */}
+      <section className="py-16" style={{ background: PLASTER }}>
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="flex items-end justify-between">
+            <div>
+              <p className="font-utility text-[11px] uppercase tracking-[0.28em]" style={{ color: GREEN }}>Stay · live now</p>
+              <h2 className="font-display mt-1 uppercase" style={{ color: INK, fontWeight: 800, fontSize: "clamp(2rem,5vw,3.2rem)", lineHeight: 0.95 }}>
+                Book tonight in Asmara
+              </h2>
+            </div>
+          </div>
+          <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
+            {hotels.map((h) => (
+              <StayCard key={h.id} hotel={h} onClick={() => onOpenHotel(h.id)} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ---- directory grid ---- */}
+      <section className="py-16" style={{ background: PLASTER_DIM, borderTop: `2px solid ${INK}` }}>
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <p className="font-utility text-[11px] uppercase tracking-[0.28em]" style={{ color: PETROL }}>The full guide</p>
+          <h2 className="font-display mt-1 max-w-xl uppercase" style={{ color: INK, fontWeight: 800, fontSize: "clamp(2rem,5vw,3.2rem)", lineHeight: 0.95 }}>
+            Everything a visit needs, one directory
+          </h2>
+          <div className="mt-8 grid grid-cols-2 gap-px border-2 lg:grid-cols-4" style={{ background: INK, borderColor: INK }}>
+            {SITE_MAP.map((section) => {
+              const liveItem = section.items.find((it) => it.status === "live");
+              return (
+                <button
+                  key={section.id}
+                  onClick={() => onNavigateItem(liveItem || { ...section.items[0], label: section.label })}
+                  className="group flex flex-col gap-3 p-5 text-left transition-colors hover:bg-white"
+                  style={{ background: PLASTER }}
+                >
+                  <div className="flex items-center justify-between">
+                    <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" style={{ color: liveItem ? OCHRE_DEEP : PETROL }} />
+                    {liveItem ? (
+                      <span className="font-utility px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-white" style={{ background: GREEN }}>live</span>
+                    ) : (
+                      <span className="font-utility text-[9px] uppercase tracking-widest" style={{ color: ROSE }}>soon</span>
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="font-display text-lg uppercase" style={{ color: INK, fontWeight: 800 }}>{section.label}</h3>
+                    <p className="font-body mt-0.5 text-xs" style={{ color: PETROL }}>
+                      {section.items.slice(0, 3).map((it) => it.label).join(" · ")}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
@@ -1098,6 +1716,7 @@ function AsmaraContentPage({ onBack, onBrowseHotels }) {
 }
 
 export default function App() {
+  const navigate = useNavigate();
   const [state, setState] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [comingSoonLabel, setComingSoonLabel] = useState("");
@@ -1164,6 +1783,28 @@ export default function App() {
     },
     [reload]
   );
+  const addFrontDeskBooking = useCallback(
+    async (booking) => {
+      const saved = await createFrontDeskBooking(booking);
+      await reload();
+      return saved;
+    },
+    [reload]
+  );
+  const checkInGuest = useCallback(
+    async (bookingId) => {
+      await checkInBooking(bookingId);
+      await reload();
+    },
+    [reload]
+  );
+  const checkOutGuest = useCallback(
+    async (bookingId) => {
+      await checkOutBooking(bookingId);
+      await reload();
+    },
+    [reload]
+  );
 
   if (loadError) {
     return (
@@ -1182,6 +1823,7 @@ export default function App() {
       <PartnerArea
         hotels={state.hotels} bookings={state.bookings}
         onUpdateRoom={updateRoom} onAddRoom={addRoom} onRemoveRoom={removeRoom} onAddHotel={addHotel}
+        onCreateFrontDeskBooking={addFrontDeskBooking} onCheckIn={checkInGuest} onCheckOut={checkOutGuest}
         onExit={() => setView("home")}
       />
     );
@@ -1196,6 +1838,10 @@ export default function App() {
       setView("comingsoon");
       return;
     }
+    if (item.route) {
+      navigate(item.route);
+      return;
+    }
     if (item.view === "content") {
       setView("content");
     } else {
@@ -1204,9 +1850,18 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: PLASTER, fontFamily: "ui-sans-serif, system-ui, sans-serif" }}>
+    <div className="font-body min-h-screen" style={{ background: PLASTER, fontFamily: "'Archivo', ui-sans-serif, system-ui, sans-serif" }}>
+      <style>{FONT_CSS}</style>
       {view !== "checkout" && view !== "confirmation" && (
-        <NavHeader onOpenMenu={() => setDrawerOpen(true)} onNavigate={setView} onNavigateItem={handleDrawerNavigate} />
+        <NavHeader
+          onOpenMenu={() => setDrawerOpen(true)}
+          onNavigate={setView}
+          onNavigateItem={handleDrawerNavigate}
+          onBookStay={() => {
+            setView("home");
+            setTimeout(() => document.getElementById("book-search")?.scrollIntoView({ behavior: "smooth", block: "center" }), 80);
+          }}
+        />
       )}
       <SideDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} onNavigateItem={handleDrawerNavigate} />
 
@@ -1216,6 +1871,9 @@ export default function App() {
           searchBarProps={searchBarProps}
           onSearch={() => setView("results")}
           onOpenHotel={(id) => { setOpenHotelId(id); setView("hotel"); }}
+          onExploreAsmara={() => setView("content")}
+          onComingSoon={(label) => { setComingSoonLabel(label); setView("comingsoon"); }}
+          onNavigateItem={handleDrawerNavigate}
         />
       )}
 
@@ -1255,6 +1913,8 @@ export default function App() {
           bookings={state.bookings}
           checkIn={checkIn}
           checkOut={checkOut}
+          setCheckIn={setCheckIn}
+          setCheckOut={setCheckOut}
           onBack={() => setView("results")}
           onSelectRoom={(room) => { setSelectedRoom(room); setView("checkout"); }}
         />
@@ -1284,10 +1944,32 @@ export default function App() {
         <Confirmation hotel={openHotel} room={selectedRoom} booking={lastBooking} onDone={() => setView("home")} />
       )}
 
-      <footer className="border-t px-4 py-4 text-center sm:px-8" style={{ borderColor: CARD_BORDER }}>
-        <button onClick={() => setView("partner")} className="text-[11px] text-gray-400 underline">
-          Hotel partner or platform admin? Manage your property here
-        </button>
+      <footer style={{ background: INK }}>
+        <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+          <div className="flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-end">
+            <div>
+              <SpeedLines />
+              <p className="font-display mt-3 text-2xl uppercase" style={{ color: PLASTER, fontWeight: 800 }}>
+                Eritrean<span style={{ color: OCHRE }}>Tourism</span>
+              </p>
+              <p className="font-body mt-2 max-w-sm text-sm" style={{ color: "rgba(246,240,224,0.6)" }}>
+                The definitive guide to visiting Eritrea — culture and places first,
+                stays and experiences bookable when you're ready.
+              </p>
+            </div>
+            <div className="font-utility space-y-1.5 text-[11px] uppercase tracking-[0.2em]" style={{ color: "rgba(246,240,224,0.55)" }}>
+              <p>Bookings settled locally in Eritrea</p>
+              <p>All hotel rates quoted in USD</p>
+              <button onClick={() => setView("partner")} className="underline" style={{ color: "rgba(246,240,224,0.4)" }}>
+                Partner &amp; admin access
+              </button>
+            </div>
+          </div>
+          <div className="font-utility mt-8 flex flex-col gap-2 border-t pt-4 text-[10px] uppercase tracking-[0.2em] sm:flex-row sm:justify-between" style={{ borderColor: "rgba(246,240,224,0.15)", color: "rgba(246,240,224,0.4)" }}>
+            <span>© {new Date().getFullYear()} eritreantourism.com</span>
+            <span>Photography placeholders pending licensed images</span>
+          </div>
+        </div>
       </footer>
     </div>
   );
